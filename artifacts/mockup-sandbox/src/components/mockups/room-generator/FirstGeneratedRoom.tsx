@@ -4,53 +4,142 @@ import { Droplets, RefreshCw, Ruler, Sparkles } from "lucide-react";
 type TileId = string;
 
 const TILE_ROOT = "/__mockup/images/tileset";
-const COLS = 16;
-const ROWS = 11;
+const COLS = 24;
+const ROWS = 17;
 
 const floorTiles = ["B2", "C2", "D2", "E2", "B3", "C3", "D3", "E3", "B4", "C4", "D4", "E4"];
 const topWalls = ["A1", "B1", "C1", "D1", "E1", "F1"];
 const bottomCaps = ["A5", "B5", "C5", "D5", "E5", "F5"];
+const voidTile = "H2";
 
 type RoomLayout = {
   name: string;
   seed: string;
-  waterX: number;
-  waterY: number;
-  waterW: number;
-  waterH: number;
+  floorRects: Rect[];
+  waterRects: Rect[];
+  bridgeCells: Point[];
+  perspectiveTops: Rect[];
   stairsUp: [number, number];
   stairsDown: [number, number];
 };
 
+type Point = { x: number; y: number };
+type Rect = { x: number; y: number; w: number; h: number };
+
 const layouts: RoomLayout[] = [
-  { name: "Flooded antechamber", seed: "A-017", waterX: 9, waterY: 5, waterW: 4, waterH: 3, stairsUp: [3, 8], stairsDown: [13, 8] },
-  { name: "Twin stair cistern", seed: "B-042", waterX: 3, waterY: 5, waterW: 4, waterH: 3, stairsUp: [11, 4], stairsDown: [7, 8] },
-  { name: "The low vault", seed: "C-083", waterX: 6, waterY: 3, waterW: 5, waterH: 3, stairsUp: [3, 8], stairsDown: [13, 8] },
+  {
+    name: "Flooded antechamber",
+    seed: "A-017",
+    floorRects: [
+      { x: 2, y: 3, w: 12, h: 9 },
+      { x: 13, y: 8, w: 6, h: 2 },
+      { x: 17, y: 5, w: 6, h: 7 },
+      { x: 7, y: 12, w: 2, h: 4 },
+    ],
+    waterRects: [{ x: 5, y: 6, w: 5, h: 5 }],
+    bridgeCells: Array.from({ length: 5 }, (_, index) => ({ x: 5 + index, y: 8 })),
+    perspectiveTops: [
+      { x: 2, y: 3, w: 12, h: 1 },
+      { x: 17, y: 5, w: 6, h: 1 },
+    ],
+    stairsUp: [3, 10],
+    stairsDown: [19, 8],
+  },
+  {
+    name: "Twin stair cistern",
+    seed: "B-042",
+    floorRects: [
+      { x: 3, y: 3, w: 9, h: 9 },
+      { x: 11, y: 7, w: 7, h: 2 },
+      { x: 16, y: 4, w: 7, h: 8 },
+      { x: 6, y: 11, w: 2, h: 5 },
+    ],
+    waterRects: [{ x: 4, y: 5, w: 4, h: 4 }],
+    bridgeCells: Array.from({ length: 4 }, (_, index) => ({ x: 4 + index, y: 7 })),
+    perspectiveTops: [
+      { x: 3, y: 3, w: 9, h: 1 },
+      { x: 16, y: 4, w: 7, h: 1 },
+    ],
+    stairsUp: [5, 10],
+    stairsDown: [20, 7],
+  },
+  {
+    name: "The low vault",
+    seed: "C-083",
+    floorRects: [
+      { x: 2, y: 4, w: 10, h: 7 },
+      { x: 11, y: 8, w: 5, h: 2 },
+      { x: 14, y: 5, w: 9, h: 7 },
+      { x: 5, y: 10, w: 2, h: 6 },
+    ],
+    waterRects: [{ x: 5, y: 5, w: 4, h: 4 }],
+    bridgeCells: Array.from({ length: 4 }, (_, index) => ({ x: 5 + index, y: 7 })),
+    perspectiveTops: [
+      { x: 2, y: 4, w: 10, h: 1 },
+      { x: 14, y: 5, w: 9, h: 1 },
+    ],
+    stairsUp: [3, 9],
+    stairsDown: [19, 8],
+  },
 ];
 
 function imageFor(tile: TileId) {
   return `${TILE_ROOT}/${tile}.png`;
 }
 
+function inRect(x: number, y: number, rect: Rect) {
+  return x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h;
+}
+
+function hasPoint(points: Point[], x: number, y: number) {
+  return points.some((point) => point.x === x && point.y === y);
+}
+
+function isFloor(layout: RoomLayout, x: number, y: number) {
+  return layout.floorRects.some((rect) => inRect(x, y, rect));
+}
+
+function isWater(layout: RoomLayout, x: number, y: number) {
+  return layout.waterRects.some((rect) => inRect(x, y, rect)) && !hasPoint(layout.bridgeCells, x, y);
+}
+
+function isOpen(layout: RoomLayout, x: number, y: number) {
+  return isFloor(layout, x, y) || isWater(layout, x, y);
+}
+
+function waterTile(layout: RoomLayout, x: number, y: number): TileId {
+  const edgeTop = !isWater(layout, x, y - 1);
+  const edgeLeft = !isWater(layout, x - 1, y);
+  const edgeRight = !isWater(layout, x + 1, y);
+  if (edgeTop) return ["H4", "I4", "J4", "K4"][(x + y) % 4];
+  if (edgeLeft) return "H5";
+  if (edgeRight) return "K5";
+  return ["I5", "J5"][(x + y) % 2];
+}
+
 function tileFor(layout: RoomLayout, x: number, y: number): TileId {
-  if (y === 0) return topWalls[x === 0 ? 0 : x === COLS - 1 ? 5 : (x % 4) + 1];
-  if (y === ROWS - 1) return bottomCaps[x === 0 ? 0 : x === COLS - 1 ? 5 : (x % 4) + 1];
-  if (x === 0) return ["A2", "A3", "A4"][y % 3];
-  if (x === COLS - 1) return ["F2", "F3", "F4"][y % 3];
-
-  const inWater = x >= layout.waterX && x < layout.waterX + layout.waterW && y >= layout.waterY && y < layout.waterY + layout.waterH;
-  if (inWater) {
-    const edgeTop = y === layout.waterY;
-    const edgeLeft = x === layout.waterX;
-    const edgeRight = x === layout.waterX + layout.waterW - 1;
-    if (edgeTop) return ["H4", "I4", "J4", "K4"][(x - layout.waterX) % 4];
-    if (edgeLeft) return "H5";
-    if (edgeRight) return "K5";
-    return ["I5", "J5"][(x + y) % 2];
-  }
-
+  if (!isOpen(layout, x, y)) return voidTile;
+  if (isWater(layout, x, y)) return waterTile(layout, x, y);
   if (x === layout.stairsUp[0] && y === layout.stairsUp[1]) return "G4";
   if (x === layout.stairsDown[0] && y === layout.stairsDown[1]) return "G5";
+
+  const topOpen = isOpen(layout, x, y - 1);
+  const bottomOpen = isOpen(layout, x, y + 1);
+  const leftOpen = isOpen(layout, x - 1, y);
+  const rightOpen = isOpen(layout, x + 1, y);
+  const perspectiveTop = layout.perspectiveTops.find((rect) => inRect(x, y, rect));
+  const atPerspectiveTop = Boolean(perspectiveTop) && !topOpen;
+
+  if (atPerspectiveTop) {
+    const offset = x - perspectiveTop!.x;
+    return topWalls[offset === 0 ? 0 : offset === perspectiveTop!.w - 1 ? 5 : (offset % 4) + 1];
+  }
+  if (!topOpen || !bottomOpen) {
+    const offset = (x + y) % 4;
+    return bottomCaps[offset + 1];
+  }
+  if (!leftOpen) return ["A2", "A3", "A4"][y % 3];
+  if (!rightOpen) return ["F2", "F3", "F4"][y % 3];
   return floorTiles[(x * 3 + y * 5) % floorTiles.length];
 }
 
@@ -61,6 +150,7 @@ function buildRoom(layout: RoomLayout) {
 }
 
 function roleFor(tile: TileId) {
+  if (tile === voidTile) return "void";
   if (["H4", "I4", "J4", "K4", "H5", "I5", "J5", "K5"].includes(tile)) return "water";
   if (tile === "G4" || tile === "G5") return "stairs";
   if (tile.endsWith("1") && tile !== "H1") return "perspective wall";
@@ -108,7 +198,7 @@ export function FirstGeneratedRoom() {
           <div>
             <p className="eyebrow">Room generator / first pass</p>
             <h1 className="room-title">{layout.name}</h1>
-            <p className="room-subtitle">A compact stone chamber assembled from the labeled atlas. Perspective walls stay full-face; narrow caps only close the visible boundaries.</p>
+            <p className="room-subtitle">An abstract chamber network assembled from the labeled atlas. Each chamber has one top-facing perspective wall; lower edges stay thin so the shapes never overhang.</p>
           </div>
           <button className="regen" type="button" onClick={() => setLayoutIndex((index) => (index + 1) % layouts.length)}>
             <RefreshCw size={14} strokeWidth={2.5} /> Regenerate room
@@ -123,12 +213,12 @@ export function FirstGeneratedRoom() {
             </div>
           </div>
           <div className="under-map">
-            <span><strong>SEED {layout.seed}</strong> · 16 × 11 cells · deterministic layout</span>
+            <span><strong>SEED {layout.seed}</strong> · {COLS} × {ROWS} cells · deterministic layout</span>
             <span>Atlas coordinates preserved in tile IDs</span>
           </div>
           <div className="specs">
             <div className="spec"><div className="spec-label"><Ruler size={12} /> Native scale</div><div className="spec-value">32 × 32 CSS px / tile</div></div>
-            <div className="spec"><div className="spec-label"><Droplets size={12} /> Chamber</div><div className="spec-value">{layout.waterW} × {layout.waterH} water pocket</div></div>
+            <div className="spec"><div className="spec-label"><Droplets size={12} /> Water pockets</div><div className="spec-value">{layout.waterRects.map((rect) => `${rect.w} × ${rect.h}`).join(" · ")} floor bridges</div></div>
             <div className="spec"><div className="spec-label"><Sparkles size={12} /> Tile source</div><div className="spec-value">32 × 32 PNG atlas</div></div>
           </div>
           <div className="legend">
@@ -136,7 +226,7 @@ export function FirstGeneratedRoom() {
             <span className="legend-item"><i className="swatch water" /> water + edge transition</span>
             <span className="legend-item"><i className="swatch stairs" /> ascending / descending</span>
           </div>
-          <p className="note">Generation rule: labels containing <strong>perspective</strong> render as the room's full back face. Non-perspective wall labels remain thin top or side caps and never substitute for those pieces.</p>
+          <p className="note">Generation rule: each chamber gets a single top-facing <strong>perspective</strong> back wall. Every lower boundary uses a thin non-perspective cap; perspective tiles never appear on both sides of the same chamber.</p>
         </div>
       </section>
     </main>
