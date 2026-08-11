@@ -16,9 +16,9 @@ type RoomLayout = {
   name: string;
   seed: string;
   floorRects: Rect[];
+  cutCells?: Point[];
   waterRects: Rect[];
   bridgeCells: Point[];
-  perspectiveTops: Rect[];
   stairsUp: [number, number];
   stairsDown: [number, number];
 };
@@ -36,12 +36,9 @@ const layouts: RoomLayout[] = [
       { x: 17, y: 5, w: 6, h: 7 },
       { x: 7, y: 12, w: 2, h: 4 },
     ],
+    // This layout keeps its clean rectangular chambers as the "no cut" case.
     waterRects: [{ x: 5, y: 6, w: 5, h: 5 }],
     bridgeCells: Array.from({ length: 5 }, (_, index) => ({ x: 5 + index, y: 8 })),
-    perspectiveTops: [
-      { x: 2, y: 3, w: 12, h: 1 },
-      { x: 17, y: 5, w: 6, h: 1 },
-    ],
     stairsUp: [3, 10],
     stairsDown: [19, 8],
   },
@@ -54,12 +51,15 @@ const layouts: RoomLayout[] = [
       { x: 16, y: 4, w: 7, h: 8 },
       { x: 6, y: 11, w: 2, h: 5 },
     ],
+    // Corner cuts are deliberately occasional, not a rule for every room.
+    cutCells: [
+      { x: 3, y: 3 },
+      { x: 4, y: 3 },
+      { x: 21, y: 11 },
+      { x: 22, y: 11 },
+    ],
     waterRects: [{ x: 4, y: 5, w: 4, h: 4 }],
     bridgeCells: Array.from({ length: 4 }, (_, index) => ({ x: 4 + index, y: 7 })),
-    perspectiveTops: [
-      { x: 3, y: 3, w: 9, h: 1 },
-      { x: 16, y: 4, w: 7, h: 1 },
-    ],
     stairsUp: [5, 10],
     stairsDown: [20, 7],
   },
@@ -72,12 +72,13 @@ const layouts: RoomLayout[] = [
       { x: 14, y: 5, w: 9, h: 7 },
       { x: 5, y: 10, w: 2, h: 6 },
     ],
+    cutCells: [
+      { x: 2, y: 4 },
+      { x: 3, y: 4 },
+      { x: 21, y: 11 },
+    ],
     waterRects: [{ x: 5, y: 5, w: 4, h: 4 }],
     bridgeCells: Array.from({ length: 4 }, (_, index) => ({ x: 5 + index, y: 7 })),
-    perspectiveTops: [
-      { x: 2, y: 4, w: 10, h: 1 },
-      { x: 14, y: 5, w: 9, h: 1 },
-    ],
     stairsUp: [3, 9],
     stairsDown: [19, 8],
   },
@@ -96,7 +97,10 @@ function hasPoint(points: Point[], x: number, y: number) {
 }
 
 function isFloor(layout: RoomLayout, x: number, y: number) {
-  return layout.floorRects.some((rect) => inRect(x, y, rect));
+  return (
+    layout.floorRects.some((rect) => inRect(x, y, rect)) &&
+    !hasPoint(layout.cutCells ?? [], x, y)
+  );
 }
 
 function isWater(layout: RoomLayout, x: number, y: number) {
@@ -117,30 +121,69 @@ function waterTile(layout: RoomLayout, x: number, y: number): TileId {
   return ["I5", "J5"][(x + y) % 2];
 }
 
+function topWallTile(x: number, y: number): TileId {
+  return topWalls[1 + ((x * 3 + y) % 4)];
+}
+
+function bottomWallTile(x: number, y: number): TileId {
+  return bottomCaps[1 + ((x * 5 + y) % 4)];
+}
+
+function sideWallTile(x: number, y: number, side: "left" | "right"): TileId {
+  const variants = side === "left" ? ["A2", "A3", "A4"] : ["F2", "F3", "F4"];
+  return variants[(x + y) % variants.length];
+}
+
+/**
+ * Walls are placed in void cells adjacent to the floor footprint. Previously
+ * boundary floor cells were swapped for walls, which made a two-cell strip
+ * entirely wall and made hallways appear disconnected.
+ */
+function wallTileFor(layout: RoomLayout, x: number, y: number): TileId {
+  const north = isOpen(layout, x, y - 1);
+  const south = isOpen(layout, x, y + 1);
+  const west = isOpen(layout, x - 1, y);
+  const east = isOpen(layout, x + 1, y);
+
+  // A corner is one cell diagonally outside the footprint. This keeps the
+  // corner tile outside the room instead of stretching a perspective tile
+  // over the first/last floor cell.
+  const northEast = isOpen(layout, x + 1, y - 1);
+  const northWest = isOpen(layout, x - 1, y - 1);
+  const southEast = isOpen(layout, x + 1, y + 1);
+  const southWest = isOpen(layout, x - 1, y + 1);
+
+  if (!north && !south && !west && !east) {
+    if (southEast) return "A1";
+    if (southWest) return "F1";
+    if (northEast) return "A5";
+    if (northWest) return "F5";
+    return voidTile;
+  }
+
+  // The top-facing perspective wall is only used on the outside edge. The
+  // side and bottom edges use the thin atlas pieces.
+  if (south && !north) return topWallTile(x, y);
+  if (north && !south) return bottomWallTile(x, y);
+  if (east && !west) return sideWallTile(x, y, "left");
+  if (west && !east) return sideWallTile(x, y, "right");
+
+  // Resolve unusual concave junctions to a thin wall rather than allowing a
+  // perspective tile to overlap a floor.
+  if (east) return sideWallTile(x, y, "left");
+  if (west) return sideWallTile(x, y, "right");
+  return south ? topWallTile(x, y) : bottomWallTile(x, y);
+}
+
 function tileFor(layout: RoomLayout, x: number, y: number): TileId {
-  if (!isOpen(layout, x, y)) return voidTile;
-  if (isWater(layout, x, y)) return waterTile(layout, x, y);
-  if (x === layout.stairsUp[0] && y === layout.stairsUp[1]) return "G4";
-  if (x === layout.stairsDown[0] && y === layout.stairsDown[1]) return "G5";
-
-  const topOpen = isOpen(layout, x, y - 1);
-  const bottomOpen = isOpen(layout, x, y + 1);
-  const leftOpen = isOpen(layout, x - 1, y);
-  const rightOpen = isOpen(layout, x + 1, y);
-  const perspectiveTop = layout.perspectiveTops.find((rect) => inRect(x, y, rect));
-  const atPerspectiveTop = Boolean(perspectiveTop) && !topOpen;
-
-  if (atPerspectiveTop) {
-    const offset = x - perspectiveTop!.x;
-    return topWalls[offset === 0 ? 0 : offset === perspectiveTop!.w - 1 ? 5 : (offset % 4) + 1];
+  if (isOpen(layout, x, y)) {
+    if (isWater(layout, x, y)) return waterTile(layout, x, y);
+    if (x === layout.stairsUp[0] && y === layout.stairsUp[1]) return "G4";
+    if (x === layout.stairsDown[0] && y === layout.stairsDown[1]) return "G5";
+    return floorTiles[(x * 3 + y * 5) % floorTiles.length];
   }
-  if (!topOpen || !bottomOpen) {
-    const offset = (x + y) % 4;
-    return bottomCaps[offset + 1];
-  }
-  if (!leftOpen) return ["A2", "A3", "A4"][y % 3];
-  if (!rightOpen) return ["F2", "F3", "F4"][y % 3];
-  return floorTiles[(x * 3 + y * 5) % floorTiles.length];
+
+  return wallTileFor(layout, x, y);
 }
 
 function buildRoom(layout: RoomLayout) {
@@ -198,7 +241,7 @@ export function FirstGeneratedRoom() {
           <div>
             <p className="eyebrow">Room generator / first pass</p>
             <h1 className="room-title">{layout.name}</h1>
-            <p className="room-subtitle">An abstract chamber network assembled from the labeled atlas. Each chamber has one top-facing perspective wall; lower edges stay thin so the shapes never overhang.</p>
+            <p className="room-subtitle">An abstract chamber network assembled from the labeled atlas. Floors remain continuous through halls, while surrounding wall edges and occasional corner cuts keep each room inside its footprint.</p>
           </div>
           <button className="regen" type="button" onClick={() => setLayoutIndex((index) => (index + 1) % layouts.length)}>
             <RefreshCw size={14} strokeWidth={2.5} /> Regenerate room
@@ -222,11 +265,11 @@ export function FirstGeneratedRoom() {
             <div className="spec"><div className="spec-label"><Sparkles size={12} /> Tile source</div><div className="spec-value">32 × 32 PNG atlas</div></div>
           </div>
           <div className="legend">
-            <span className="legend-item"><i className="swatch" /> floor / wall cap</span>
+            <span className="legend-item"><i className="swatch" /> floor + wall cap</span>
             <span className="legend-item"><i className="swatch water" /> water + edge transition</span>
             <span className="legend-item"><i className="swatch stairs" /> ascending / descending</span>
           </div>
-          <p className="note">Generation rule: each chamber gets a single top-facing <strong>perspective</strong> back wall. Every lower boundary uses a thin non-perspective cap; perspective tiles never appear on both sides of the same chamber.</p>
+           <p className="note">Generation rule: floors stay on the room footprint and walls occupy the surrounding void. Top edges use perspective pieces, side and lower edges use thin caps, and corner pieces appear only where a boundary actually turns.</p>
         </div>
       </section>
     </main>
