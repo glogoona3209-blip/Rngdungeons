@@ -8,7 +8,6 @@ type RoomLayout = {
   name: string;
   seed: string;
   floorRects: Rect[];
-  cutCells?: Point[];
   waterRects: Rect[];
   bridgeCells: Point[];
   stairsUp: [number, number];
@@ -23,15 +22,75 @@ const topWalls = ["A1", "B1", "C1", "D1", "E1", "F1"];
 const bottomCaps = ["A5", "B5", "C5", "D5", "E5", "F5"];
 const voidTile = "H2";
 
-const layouts: RoomLayout[] = [
-  { name: "Flooded antechamber", seed: "A-017", floorRects: [{ x: 2, y: 3, w: 12, h: 9 }, { x: 13, y: 8, w: 6, h: 2 }, { x: 17, y: 5, w: 6, h: 7 }, { x: 7, y: 12, w: 2, h: 4 }], waterRects: [{ x: 5, y: 6, w: 5, h: 5 }], bridgeCells: Array.from({ length: 5 }, (_, i) => ({ x: 5 + i, y: 8 })), stairsUp: [3, 10], stairsDown: [19, 8] },
-  { name: "Twin stair cistern", seed: "B-042", floorRects: [{ x: 3, y: 3, w: 9, h: 9 }, { x: 11, y: 7, w: 7, h: 2 }, { x: 16, y: 4, w: 7, h: 8 }, { x: 6, y: 11, w: 2, h: 5 }], cutCells: [{ x: 3, y: 3 }, { x: 4, y: 3 }, { x: 21, y: 11 }, { x: 22, y: 11 }], waterRects: [{ x: 4, y: 5, w: 4, h: 4 }], bridgeCells: Array.from({ length: 4 }, (_, i) => ({ x: 4 + i, y: 7 })), stairsUp: [5, 10], stairsDown: [20, 7] },
-  { name: "The low vault", seed: "C-083", floorRects: [{ x: 2, y: 4, w: 10, h: 7 }, { x: 11, y: 8, w: 5, h: 2 }, { x: 14, y: 5, w: 9, h: 7 }, { x: 5, y: 10, w: 2, h: 6 }], cutCells: [{ x: 2, y: 4 }, { x: 3, y: 4 }, { x: 21, y: 11 }], waterRects: [{ x: 5, y: 5, w: 4, h: 4 }], bridgeCells: Array.from({ length: 4 }, (_, i) => ({ x: 5 + i, y: 7 })), stairsUp: [3, 9], stairsDown: [19, 8] },
-];
+const randomInt = (random: () => number, min: number, max: number) => Math.floor(random() * (max - min + 1)) + min;
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
+
+function createSeed() {
+  return `R-${Math.floor(Math.random() * 0xffffff).toString(16).toUpperCase().padStart(6, "0")}`;
+}
+
+function createRandom(seed: string) {
+  let value = 0;
+  for (let index = 0; index < seed.length; index += 1) value = (value * 31 + seed.charCodeAt(index)) | 0;
+  return () => {
+    value = Math.imul(1664525, value) + 1013904223;
+    return (value >>> 0) / 0x100000000;
+  };
+}
+
+function createRandomLayout(): RoomLayout {
+  const seed = createSeed();
+  const random = createRandom(seed);
+  const leftRoom: Rect = {
+    x: randomInt(random, 2, 4),
+    y: randomInt(random, 2, 4),
+    w: randomInt(random, 8, 10),
+    h: randomInt(random, 7, 10),
+  };
+  const rightRoom: Rect = {
+    x: randomInt(random, 14, 16),
+    y: clamp(leftRoom.y + randomInt(random, -1, 2), 2, 6),
+    w: randomInt(random, 6, 8),
+    h: randomInt(random, 7, 10),
+  };
+  const overlapTop = Math.max(leftRoom.y, rightRoom.y);
+  const overlapBottom = Math.min(leftRoom.y + leftRoom.h - 1, rightRoom.y + rightRoom.h - 1);
+  const hallY = randomInt(random, overlapTop, overlapBottom - 1);
+  const hall: Rect = {
+    x: leftRoom.x + leftRoom.w - 1,
+    y: hallY,
+    w: rightRoom.x - leftRoom.x - leftRoom.w + 2,
+    h: randomInt(random, 2, 3),
+  };
+  const branchX = leftRoom.x + randomInt(random, 1, leftRoom.w - 3);
+  const branch: Rect = {
+    x: branchX,
+    y: leftRoom.y + leftRoom.h - 1,
+    w: randomInt(random, 2, 4),
+    h: ROWS - (leftRoom.y + leftRoom.h - 1) - 1,
+  };
+  const water: Rect = {
+    x: leftRoom.x + 2,
+    y: leftRoom.y + 2,
+    w: randomInt(random, 3, Math.min(5, leftRoom.w - 3)),
+    h: randomInt(random, 3, Math.min(5, leftRoom.h - 3)),
+  };
+  const bridgeY = water.y + Math.floor(water.h / 2);
+
+  return {
+    name: "Newly formed chamber",
+    seed,
+    floorRects: [leftRoom, hall, rightRoom, branch],
+    waterRects: [water],
+    bridgeCells: Array.from({ length: water.w }, (_, index) => ({ x: water.x + index, y: bridgeY })),
+    stairsUp: [leftRoom.x + 1, leftRoom.y + 1],
+    stairsDown: [rightRoom.x + rightRoom.w - 2, rightRoom.y + rightRoom.h - 2],
+  };
+}
 
 const inRect = (x: number, y: number, rect: Rect) => x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h;
 const hasPoint = (points: Point[], x: number, y: number) => points.some((point) => point.x === x && point.y === y);
-const isFloor = (layout: RoomLayout, x: number, y: number) => layout.floorRects.some((rect) => inRect(x, y, rect)) && !hasPoint(layout.cutCells ?? [], x, y);
+const isFloor = (layout: RoomLayout, x: number, y: number) => layout.floorRects.some((rect) => inRect(x, y, rect));
 const isWater = (layout: RoomLayout, x: number, y: number) => layout.waterRects.some((rect) => inRect(x, y, rect)) && !hasPoint(layout.bridgeCells, x, y);
 const isOpen = (layout: RoomLayout, x: number, y: number) => isFloor(layout, x, y) || isWater(layout, x, y);
 const isWalkable = (layout: RoomLayout, x: number, y: number) => x >= 0 && x < COLS && y >= 0 && y < ROWS && isFloor(layout, x, y) && !isWater(layout, x, y);
@@ -93,8 +152,7 @@ function roleFor(tile: TileId) {
 }
 
 export function FirstGeneratedRoom() {
-  const [layoutIndex, setLayoutIndex] = useState(0);
-  const layout = layouts[layoutIndex];
+  const [layout, setLayout] = useState<RoomLayout>(() => createRandomLayout());
   const [player, setPlayer] = useState<Point>({ x: layout.stairsUp[0], y: layout.stairsUp[1] });
   const [isMobile, setIsMobile] = useState(false);
   const room = useMemo(() => buildRoom(layout), [layout]);
@@ -118,10 +176,10 @@ export function FirstGeneratedRoom() {
   return (
     <main className="room-shell">
       <section className="room-frame">
-        <header className="room-header"><div><p className="eyebrow">Room generator / first pass</p><h1 className="room-title">{layout.name}</h1><p className="room-subtitle">An abstract chamber network assembled from the labeled atlas. Floors remain continuous through halls, while surrounding wall edges and occasional corner cuts keep each room inside its footprint.</p></div><button className="regen" type="button" onClick={() => setLayoutIndex((index) => (index + 1) % layouts.length)}><RefreshCw size={14} strokeWidth={2.5} /> Regenerate room</button></header>
+         <header className="room-header"><div><p className="eyebrow">Room generator / first pass</p><h1 className="room-title">{layout.name}</h1><p className="room-subtitle">An abstract chamber network assembled from the labeled atlas. Floors remain continuous through halls, while surrounding wall edges define each newly generated footprint.</p></div><button className="regen" type="button" onClick={() => setLayout(createRandomLayout())}><RefreshCw size={14} strokeWidth={2.5} /> Regenerate room</button></header>
         <div className="room-body">
           <div className="map-stage" aria-label={`${layout.name} tile preview`}><div className="map">{room.flatMap((row, y) => row.map((tile, x) => <img className="tile" key={`${x}-${y}-${tile}`} src={`${TILE_ROOT}/${tile}.png`} alt={`${tile}, ${roleFor(tile)}, grid ${x + 1} by ${y + 1}`} title={`${tile} · ${roleFor(tile)}`} />))}<div className="player-sprite" style={{ left: player.x * 32, top: player.y * 32 }} role="img" aria-label={`Pill character at grid ${player.x + 1} by ${player.y + 1}`}><span className="player-label">P1</span></div></div></div>
-          <div className="under-map"><span><strong>SEED {layout.seed}</strong> · {COLS} × {ROWS} cells · deterministic layout</span><span aria-live="polite">PILL {player.x + 1},{player.y + 1} · {isMobile ? "touch controls active" : "arrow keys / WASD"}</span></div>
+           <div className="under-map"><span><strong>SEED {layout.seed}</strong> · {COLS} × {ROWS} cells · fresh layout</span><span aria-live="polite">PILL {player.x + 1},{player.y + 1} · {isMobile ? "touch controls active" : "arrow keys / WASD"}</span></div>
           <div className="controls" aria-label="Movement instructions"><span><strong>Move the pill</strong> with arrow keys or WASD.</span><span>Walls and water block movement · bridges remain open.</span></div>
           <div className="mobile-controls" style={isMobile ? { display: "grid" } : undefined} aria-label="Touch movement controls">{moveButtons.map((button) => <button className={`move-button ${button.className}`} key={button.label} type="button" aria-label={button.label} onClick={() => movePlayer(button.dx, button.dy)}>{button.icon}</button>)}</div>
           <div className="specs"><div className="spec"><div className="spec-label"><Ruler size={12} /> Native scale</div><div className="spec-value">32 × 32 CSS px / tile</div></div><div className="spec"><div className="spec-label"><Droplets size={12} /> Water pockets</div><div className="spec-value">{layout.waterRects.map((rect) => `${rect.w} × ${rect.h}`).join(" · ")} floor bridges</div></div><div className="spec"><div className="spec-label"><Sparkles size={12} /> Tile source</div><div className="spec-value">32 × 32 PNG atlas</div></div></div>
