@@ -56,8 +56,8 @@ function wallTileFor(layout: RoomLayout, x: number, y: number): TileId {
   // corners on the upper-facing turns. The two groups look similar in the
   // atlas, but using them in the opposite pair makes an indent read as a
   // perspective wall at the junction.
-  if (south && east && !north && !west) return "G3";
-  if (south && west && !north && !east) return "I3";
+  if (south && east && !north && !west) return "I3";
+  if (south && west && !north && !east) return "G3";
   if (north && east && !south && !west) return "G1";
   if (north && west && !south && !east) return "I1";
   if (!north && !south && !west && !east) {
