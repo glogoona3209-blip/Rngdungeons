@@ -38,54 +38,159 @@ function createRandom(seed: string) {
   };
 }
 
+const lineCells = (start: Point, end: Point) => {
+  const cells: Point[] = [];
+  if (start.y === end.y) {
+    for (let x = Math.min(start.x, end.x); x <= Math.max(start.x, end.x); x += 1) cells.push({ x, y: start.y });
+  } else if (start.x === end.x) {
+    for (let y = Math.min(start.y, end.y); y <= Math.max(start.y, end.y); y += 1) cells.push({ x: start.x, y });
+  }
+  return cells;
+};
+
+const layoutFrom = (
+  seed: string,
+  name: string,
+  floorRects: Rect[],
+  waterRects: Rect[],
+  bridgeCells: Point[],
+  stairsUp: [number, number],
+  stairsDown: [number, number],
+): RoomLayout => ({ name, seed, floorRects, waterRects, bridgeCells, stairsUp, stairsDown });
+
+function createCourtyardLayout(seed: string, random: () => number) {
+  const courtyard: Rect = {
+    x: randomInt(random, 2, 3),
+    y: randomInt(random, 2, 3),
+    w: randomInt(random, 17, 20),
+    h: randomInt(random, 11, 13),
+  };
+  const pool: Rect = {
+    x: courtyard.x + 1,
+    y: courtyard.y + 1,
+    w: courtyard.w - 2,
+    h: courtyard.h - 2,
+  };
+  const entranceY = courtyard.y + randomInt(random, 2, courtyard.h - 3);
+  const entrance: Rect = {
+    x: courtyard.x + courtyard.w - 1,
+    y: entranceY,
+    w: COLS - (courtyard.x + courtyard.w - 1) - 1,
+    h: 2,
+  };
+
+  return layoutFrom(
+    seed,
+    "Sunken cistern courtyard",
+    [courtyard, entrance],
+    [pool],
+    [],
+    [courtyard.x, courtyard.y + 1],
+    [courtyard.x + courtyard.w - 1, entranceY],
+  );
+}
+
+function createSewerLayout(seed: string, random: () => number) {
+  const upperX = randomInt(random, 3, 5);
+  const firstTurnY = randomInt(random, 6, 8);
+  const secondX = randomInt(random, 12, 14);
+  const poolW = randomInt(random, 3, 5);
+  const pool: Rect = {
+    x: 20 - poolW,
+    y: 11,
+    w: poolW,
+    h: randomInt(random, 2, 3),
+  };
+  const verticalStart: Rect = { x: upperX, y: 2, w: 3, h: firstTurnY + 2 - 2 };
+  const firstTurn: Rect = { x: upperX, y: firstTurnY, w: secondX - upperX + 3, h: 3 };
+  const secondTurn: Rect = { x: secondX, y: firstTurnY, w: 3, h: 14 - firstTurnY };
+  const spillway: Rect = { x: secondX, y: 11, w: 21 - secondX, h: 3 };
+
+  return layoutFrom(
+    seed,
+    "Sewer spillway",
+    [verticalStart, firstTurn, secondTurn, spillway],
+    [pool],
+    [],
+    [upperX + 1, 3],
+    [secondX + 1, firstTurnY + 1],
+  );
+}
+
+function createFloodedWingLayout(seed: string, random: () => number) {
+  const leftRoom: Rect = { x: 2, y: 2, w: randomInt(random, 9, 11), h: randomInt(random, 10, 12) };
+  const rightRoom: Rect = {
+    x: randomInt(random, 14, 15),
+    y: randomInt(random, 3, 5),
+    w: randomInt(random, 7, 8),
+    h: randomInt(random, 8, 10),
+  };
+  const hallY = randomInt(random, 6, 8);
+  const hall: Rect = { x: leftRoom.x + leftRoom.w - 1, y: hallY, w: rightRoom.x - leftRoom.x - leftRoom.w + 2, h: 3 };
+  const pool: Rect = { x: leftRoom.x + 1, y: leftRoom.y + 1, w: leftRoom.w - 2, h: leftRoom.h - 2 };
+
+  return layoutFrom(
+    seed,
+    "Flooded west wing",
+    [leftRoom, hall, rightRoom],
+    [pool],
+    lineCells({ x: pool.x, y: hallY + 1 }, { x: pool.x + pool.w - 1, y: hallY + 1 }),
+    [leftRoom.x, leftRoom.y + leftRoom.h - 2],
+    [rightRoom.x + rightRoom.w - 2, rightRoom.y + 1],
+  );
+}
+
+function createBridgeBasinLayout(seed: string, random: () => number) {
+  const room: Rect = { x: 2, y: 2, w: 20, h: 12 };
+  const verticalBasin = random() > 0.5;
+  const pool: Rect = verticalBasin
+    ? { x: 9, y: room.y + 1, w: randomInt(random, 5, 7), h: room.h - 2 }
+    : { x: room.x + 2, y: 5, w: randomInt(random, 11, 14), h: randomInt(random, 5, 7) };
+  const bridgeCells = verticalBasin
+    ? lineCells({ x: pool.x + Math.floor(pool.w / 2), y: pool.y }, { x: pool.x + Math.floor(pool.w / 2), y: pool.y + pool.h - 1 })
+    : lineCells({ x: pool.x, y: pool.y + Math.floor(pool.h / 2) }, { x: pool.x + pool.w - 1, y: pool.y + Math.floor(pool.h / 2) });
+
+  return layoutFrom(
+    seed,
+    verticalBasin ? "North-south bridge basin" : "Wide bridge basin",
+    [room],
+    [pool],
+    bridgeCells,
+    [room.x + 1, room.y + 1],
+    [room.x + room.w - 2, room.y + room.h - 2],
+  );
+}
+
+function createCrossroadsLayout(seed: string, random: () => number) {
+  const verticalX = randomInt(random, 9, 11);
+  const horizontalY = randomInt(random, 6, 8);
+  const floodedLeft = random() > 0.5;
+  const vertical: Rect = { x: verticalX, y: 2, w: 5, h: 13 };
+  const horizontal: Rect = { x: 3, y: horizontalY, w: 18, h: 5 };
+  const pool: Rect = floodedLeft
+    ? { x: 4, y: horizontalY + 1, w: 5, h: 3 }
+    : { x: 16, y: horizontalY + 1, w: 5, h: 3 };
+
+  return layoutFrom(
+    seed,
+    floodedLeft ? "Flooded west crossroads" : "Flooded east crossroads",
+    [vertical, horizontal],
+    [pool],
+    [],
+    [verticalX + 2, 3],
+    floodedLeft ? [19, horizontalY + 2] : [4, horizontalY + 2],
+  );
+}
+
 function createRandomLayout(): RoomLayout {
   const seed = createSeed();
   const random = createRandom(seed);
-  const leftRoom: Rect = {
-    x: randomInt(random, 2, 4),
-    y: randomInt(random, 2, 4),
-    w: randomInt(random, 8, 10),
-    h: randomInt(random, 7, 10),
-  };
-  const rightRoom: Rect = {
-    x: randomInt(random, 14, 16),
-    y: clamp(leftRoom.y + randomInt(random, -1, 2), 2, 6),
-    w: randomInt(random, 6, 8),
-    h: randomInt(random, 7, 10),
-  };
-  const overlapTop = Math.max(leftRoom.y, rightRoom.y);
-  const overlapBottom = Math.min(leftRoom.y + leftRoom.h - 1, rightRoom.y + rightRoom.h - 1);
-  const hallY = randomInt(random, overlapTop, overlapBottom - 1);
-  const hall: Rect = {
-    x: leftRoom.x + leftRoom.w - 1,
-    y: hallY,
-    w: rightRoom.x - leftRoom.x - leftRoom.w + 2,
-    h: randomInt(random, 2, 3),
-  };
-  const branchX = leftRoom.x + randomInt(random, 1, leftRoom.w - 3);
-  const branch: Rect = {
-    x: branchX,
-    y: leftRoom.y + leftRoom.h - 1,
-    w: randomInt(random, 2, 4),
-    h: ROWS - (leftRoom.y + leftRoom.h - 1) - 1,
-  };
-  const water: Rect = {
-    x: leftRoom.x + 2,
-    y: leftRoom.y + 2,
-    w: randomInt(random, 3, Math.min(5, leftRoom.w - 3)),
-    h: randomInt(random, 3, Math.min(5, leftRoom.h - 3)),
-  };
-  const bridgeY = water.y + Math.floor(water.h / 2);
-
-  return {
-    name: "Newly formed chamber",
-    seed,
-    floorRects: [leftRoom, hall, rightRoom, branch],
-    waterRects: [water],
-    bridgeCells: Array.from({ length: water.w }, (_, index) => ({ x: water.x + index, y: bridgeY })),
-    stairsUp: [leftRoom.x + 1, leftRoom.y + 1],
-    stairsDown: [rightRoom.x + rightRoom.w - 2, rightRoom.y + rightRoom.h - 2],
-  };
+  const archetype = randomInt(random, 0, 4);
+  if (archetype === 0) return createCourtyardLayout(seed, random);
+  if (archetype === 1) return createSewerLayout(seed, random);
+  if (archetype === 2) return createFloodedWingLayout(seed, random);
+  if (archetype === 3) return createBridgeBasinLayout(seed, random);
+  return createCrossroadsLayout(seed, random);
 }
 
 const inRect = (x: number, y: number, rect: Rect) => x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h;
