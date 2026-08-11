@@ -58,8 +58,8 @@ function wallTileFor(layout: RoomLayout, x: number, y: number): TileId {
   // perspective wall at the junction.
   if (south && east && !north && !west) return "I3";
   if (south && west && !north && !east) return "G3";
-  if (north && east && !south && !west) return "G1";
-  if (north && west && !south && !east) return "I1";
+  if (north && east && !south && !west) return "I1";
+  if (north && west && !south && !east) return "G1";
   if (!north && !south && !west && !east) {
     if (southEast) return "A1";
     if (southWest) return "F1";
