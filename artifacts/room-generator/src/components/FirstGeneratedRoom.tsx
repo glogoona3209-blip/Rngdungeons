@@ -52,6 +52,13 @@ const sideWallTile = (x: number, y: number, side: "left" | "right") => (side ===
 function wallTileFor(layout: RoomLayout, x: number, y: number): TileId {
   const north = isOpen(layout, x, y - 1), south = isOpen(layout, x, y + 1), west = isOpen(layout, x - 1, y), east = isOpen(layout, x + 1, y);
   const northEast = isOpen(layout, x + 1, y - 1), northWest = isOpen(layout, x - 1, y - 1), southEast = isOpen(layout, x + 1, y + 1), southWest = isOpen(layout, x - 1, y + 1);
+  // These four compound tiles join the two wall runs at an inside corner.
+  // The wall faces sit on the opposite edges from their open neighbors:
+  // G1/I1 are the top-facing indents and G3/I3 are their lower-facing pair.
+  if (south && east && !north && !west) return "G1";
+  if (south && west && !north && !east) return "I1";
+  if (north && east && !south && !west) return "G3";
+  if (north && west && !south && !east) return "I3";
   if (!north && !south && !west && !east) {
     if (southEast) return "A1";
     if (southWest) return "F1";
