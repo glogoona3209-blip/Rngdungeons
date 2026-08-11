@@ -62,7 +62,7 @@ function createCourtyardLayout(seed: string, random: () => number) {
   const courtyard: Rect = {
     x: randomInt(random, 2, 3),
     y: randomInt(random, 2, 3),
-    w: randomInt(random, 17, 20),
+    w: randomInt(random, 17, 19),
     h: randomInt(random, 11, 13),
   };
   const pool: Rect = {
@@ -182,15 +182,199 @@ function createCrossroadsLayout(seed: string, random: () => number) {
   );
 }
 
+const optionalWater = (random: () => number, candidates: Rect[], chance = 0.68) => {
+  if (random() > chance) return [];
+  return [candidates[randomInt(random, 0, candidates.length - 1)]];
+};
+
+function createLShapeLayout(seed: string, random: () => number) {
+  const verticalX = randomInt(random, 3, 5);
+  const baseY = randomInt(random, 10, 11);
+  const vertical: Rect = { x: verticalX, y: 2, w: randomInt(random, 5, 6), h: 13 };
+  const base: Rect = { x: verticalX, y: baseY, w: randomInt(random, 15, 18), h: 4 };
+  const pool: Rect = { x: base.x + base.w - 6, y: baseY + 1, w: 4, h: 2 };
+
+  return layoutFrom(
+    seed,
+    "L-shaped reservoir",
+    [vertical, base],
+    optionalWater(random, [pool]),
+    [],
+    [vertical.x + 1, 3],
+    [base.x + base.w - 2, base.y + 1],
+  );
+}
+
+function createSShapeLayout(seed: string, random: () => number) {
+  const top: Rect = { x: 3, y: 2, w: randomInt(random, 15, 18), h: 4 };
+  const spine: Rect = { x: randomInt(random, 9, 11), y: 4, w: 5, h: 9 };
+  const bottom: Rect = { x: randomInt(random, 4, 6), y: 11, w: 17, h: 4 };
+  const topPool: Rect = { x: top.x + 2, y: top.y + 1, w: 5, h: 2 };
+  const bottomPool: Rect = { x: bottom.x + 8, y: bottom.y + 1, w: 5, h: 2 };
+  const waterRects = random() < 0.32
+    ? []
+    : random() < 0.5
+      ? [topPool]
+      : [topPool, bottomPool];
+
+  return layoutFrom(
+    seed,
+    "S-curve aqueduct",
+    [top, spine, bottom],
+    waterRects,
+    [],
+    [top.x + top.w - 3, top.y + 1],
+    [bottom.x + bottom.w - 3, bottom.y + 1],
+  );
+}
+
+function createUShapeLayout(seed: string, random: () => number) {
+  const left: Rect = { x: 3, y: 2, w: 5, h: 13 };
+  const right: Rect = { x: 16, y: 2, w: 5, h: 13 };
+  const base: Rect = { x: 3, y: 11, w: 18, h: 4 };
+  const courtyardBasin: Rect = { x: 8, y: 6, w: 8, h: 5 };
+
+  return layoutFrom(
+    seed,
+    random() > 0.45 ? "U-shaped cloister basin" : "U-shaped dry cloister",
+    [left, right, base],
+    optionalWater(random, [courtyardBasin], 0.58),
+    [],
+    [left.x + 1, left.y + 1],
+    [right.x + 2, right.y + 1],
+  );
+}
+
+function createTShapeLayout(seed: string, random: () => number) {
+  const crown: Rect = { x: 3, y: 2, w: 18, h: 5 };
+  const stem: Rect = { x: randomInt(random, 9, 10), y: 6, w: 5, h: 9 };
+  const pools = [
+    { x: crown.x + 2, y: crown.y + 1, w: 5, h: 2 },
+    { x: crown.x + crown.w - 7, y: crown.y + 2, w: 5, h: 2 },
+  ];
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "T-shaped tide hall" : "T-shaped stone gallery",
+    [crown, stem],
+    optionalWater(random, pools),
+    [],
+    [stem.x + 2, stem.y + 2],
+    [stem.x + 2, stem.y + stem.h - 2],
+  );
+}
+
+function createHShapeLayout(seed: string, random: () => number) {
+  const left: Rect = { x: 3, y: 2, w: 5, h: 13 };
+  const right: Rect = { x: 16, y: 2, w: 5, h: 13 };
+  const crossbar: Rect = { x: 3, y: randomInt(random, 6, 8), w: 18, h: 5 };
+  const pool: Rect = random() > 0.5
+    ? { x: left.x + 1, y: 5, w: 3, h: 3 }
+    : { x: right.x + 1, y: 5, w: 3, h: 3 };
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "H-shaped crossing" : "Twin-column nave",
+    [left, right, crossbar],
+    optionalWater(random, [pool], 0.55),
+    [],
+    [left.x + 1, 3],
+    [right.x + 2, 12],
+  );
+}
+
+function createCShapeLayout(seed: string, random: () => number) {
+  const spine: Rect = { x: 3, y: 2, w: 5, h: 13 };
+  const top: Rect = { x: 3, y: 2, w: 18, h: 4 };
+  const bottom: Rect = { x: 3, y: 11, w: 18, h: 4 };
+  const topPool: Rect = { x: 10, y: 3, w: 6, h: 2 };
+  const bottomPool: Rect = { x: 10, y: 12, w: 6, h: 2 };
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "C-shaped open gallery" : "C-shaped dry arcade",
+    [spine, top, bottom],
+    optionalWater(random, [topPool, bottomPool]),
+    [],
+    [spine.x + 1, 3],
+    [bottom.x + bottom.w - 3, bottom.y + 1],
+  );
+}
+
+function createRingLayout(seed: string, random: () => number) {
+  const top: Rect = { x: 3, y: 2, w: 18, h: 4 };
+  const left: Rect = { x: 3, y: 2, w: 4, h: 13 };
+  const right: Rect = { x: 17, y: 2, w: 4, h: 13 };
+  const bottom: Rect = { x: 3, y: 11, w: 18, h: 4 };
+  const innerBasin: Rect = { x: 7, y: 6, w: 10, h: 5 };
+
+  return layoutFrom(
+    seed,
+    random() > 0.45 ? "Four-sided basin ring" : "Dry ring sanctuary",
+    [top, left, right, bottom],
+    optionalWater(random, [innerBasin], 0.62),
+    [],
+    [top.x + 2, top.y + 1],
+    [bottom.x + bottom.w - 3, bottom.y + 1],
+  );
+}
+
+function createSwitchbackLayout(seed: string, random: () => number) {
+  const upper: Rect = { x: 3, y: 2, w: 13, h: 4 };
+  const upperTurn: Rect = { x: 11, y: 4, w: 5, h: 5 };
+  const lowerTurn: Rect = { x: 7, y: 8, w: 5, h: 5 };
+  const lower: Rect = { x: 7, y: 11, w: 14, h: 4 };
+  const pool: Rect = random() > 0.5
+    ? { x: 4, y: 3, w: 5, h: 2 }
+    : { x: 15, y: 12, w: 5, h: 2 };
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "Switchback terrace" : "Zigzag spillway",
+    [upper, upperTurn, lowerTurn, lower],
+    optionalWater(random, [pool]),
+    [],
+    [upper.x + upper.w - 3, upper.y + 1],
+    [lower.x + 2, lower.y + 1],
+  );
+}
+
+function createTwinChambersLayout(seed: string, random: () => number) {
+  const left: Rect = { x: 2, y: 3, w: 9, h: 10 };
+  const right: Rect = { x: 13, y: 2, w: 9, h: 11 };
+  const connector: Rect = { x: 9, y: 7, w: 6, h: 3 };
+  const leftPool: Rect = { x: 4, y: 5, w: 4, h: 3 };
+  const rightPool: Rect = { x: 16, y: 4, w: 4, h: 3 };
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "Twin chambers with a sluice" : "Paired vaulted rooms",
+    [left, right, connector],
+    random() > 0.4 ? [random() > 0.5 ? leftPool : rightPool] : [],
+    [],
+    [left.x + 2, left.y + 1],
+    [right.x + right.w - 3, right.y + right.h - 2],
+  );
+}
+
 function createRandomLayout(): RoomLayout {
   const seed = createSeed();
   const random = createRandom(seed);
-  const archetype = randomInt(random, 0, 4);
+  const archetype = randomInt(random, 0, 13);
   if (archetype === 0) return createCourtyardLayout(seed, random);
   if (archetype === 1) return createSewerLayout(seed, random);
   if (archetype === 2) return createFloodedWingLayout(seed, random);
   if (archetype === 3) return createBridgeBasinLayout(seed, random);
-  return createCrossroadsLayout(seed, random);
+  if (archetype === 4) return createCrossroadsLayout(seed, random);
+  if (archetype === 5) return createLShapeLayout(seed, random);
+  if (archetype === 6) return createSShapeLayout(seed, random);
+  if (archetype === 7) return createUShapeLayout(seed, random);
+  if (archetype === 8) return createTShapeLayout(seed, random);
+  if (archetype === 9) return createHShapeLayout(seed, random);
+  if (archetype === 10) return createCShapeLayout(seed, random);
+  if (archetype === 11) return createRingLayout(seed, random);
+  if (archetype === 12) return createSwitchbackLayout(seed, random);
+  return createTwinChambersLayout(seed, random);
 }
 
 const inRect = (x: number, y: number, rect: Rect) => x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h;
@@ -287,7 +471,7 @@ export function FirstGeneratedRoom() {
            <div className="under-map"><span><strong>SEED {layout.seed}</strong> · {COLS} × {ROWS} cells · fresh layout</span><span aria-live="polite">PILL {player.x + 1},{player.y + 1} · {isMobile ? "touch controls active" : "arrow keys / WASD"}</span></div>
           <div className="controls" aria-label="Movement instructions"><span><strong>Move the pill</strong> with arrow keys or WASD.</span><span>Walls and water block movement · bridges remain open.</span></div>
           <div className="mobile-controls" style={isMobile ? { display: "grid" } : undefined} aria-label="Touch movement controls">{moveButtons.map((button) => <button className={`move-button ${button.className}`} key={button.label} type="button" aria-label={button.label} onClick={() => movePlayer(button.dx, button.dy)}>{button.icon}</button>)}</div>
-          <div className="specs"><div className="spec"><div className="spec-label"><Ruler size={12} /> Native scale</div><div className="spec-value">32 × 32 CSS px / tile</div></div><div className="spec"><div className="spec-label"><Droplets size={12} /> Water pockets</div><div className="spec-value">{layout.waterRects.map((rect) => `${rect.w} × ${rect.h}`).join(" · ")} floor bridges</div></div><div className="spec"><div className="spec-label"><Sparkles size={12} /> Tile source</div><div className="spec-value">32 × 32 PNG atlas</div></div></div>
+           <div className="specs"><div className="spec"><div className="spec-label"><Ruler size={12} /> Native scale</div><div className="spec-value">32 × 32 CSS px / tile</div></div><div className="spec"><div className="spec-label"><Droplets size={12} /> Water pockets</div><div className="spec-value">{layout.waterRects.length ? `${layout.waterRects.map((rect) => `${rect.w} × ${rect.h}`).join(" · ")} floor bridges` : "dry footprint"}</div></div><div className="spec"><div className="spec-label"><Sparkles size={12} /> Tile source</div><div className="spec-value">32 × 32 PNG atlas</div></div></div>
           <div className="legend"><span className="legend-item"><i className="swatch" /> floor + wall cap</span><span className="legend-item"><i className="swatch water" /> water + edge transition</span><span className="legend-item"><i className="swatch stairs" /> ascending / descending</span></div>
           <p className="note">Generation rule: floors stay on the room footprint and walls occupy the surrounding void. Top edges use perspective pieces, side and lower edges use thin caps, and corner pieces appear only where a boundary actually turns.</p>
         </div>
