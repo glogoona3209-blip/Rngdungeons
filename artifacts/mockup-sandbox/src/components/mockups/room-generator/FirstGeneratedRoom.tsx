@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Droplets, RefreshCw, Ruler, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Droplets, RefreshCw, Ruler, Sparkles } from "lucide-react";
 
 type TileId = string;
 
@@ -111,6 +111,10 @@ function isOpen(layout: RoomLayout, x: number, y: number) {
   return isFloor(layout, x, y) || isWater(layout, x, y);
 }
 
+function isWalkable(layout: RoomLayout, x: number, y: number) {
+  return x >= 0 && x < COLS && y >= 0 && y < ROWS && isFloor(layout, x, y) && !isWater(layout, x, y);
+}
+
 function waterTile(layout: RoomLayout, x: number, y: number): TileId {
   const edgeTop = !isWater(layout, x, y - 1);
   const edgeLeft = !isWater(layout, x - 1, y);
@@ -203,8 +207,55 @@ function roleFor(tile: TileId) {
 
 export function FirstGeneratedRoom() {
   const [layoutIndex, setLayoutIndex] = useState(0);
+  const [player, setPlayer] = useState<Point>({ x: layouts[0].stairsUp[0], y: layouts[0].stairsUp[1] });
+  const [isMobile, setIsMobile] = useState(false);
   const layout = layouts[layoutIndex];
   const room = useMemo(() => buildRoom(layout), [layout]);
+
+  useEffect(() => {
+    setPlayer({ x: layout.stairsUp[0], y: layout.stairsUp[1] });
+  }, [layout]);
+
+  useEffect(() => {
+    const coarsePointer = window.matchMedia("(pointer: coarse)");
+    const updateMobileState = () => setIsMobile(coarsePointer.matches || window.innerWidth <= 680);
+    updateMobileState();
+    window.addEventListener("resize", updateMobileState);
+    coarsePointer.addEventListener?.("change", updateMobileState);
+    return () => {
+      window.removeEventListener("resize", updateMobileState);
+      coarsePointer.removeEventListener?.("change", updateMobileState);
+    };
+  }, []);
+
+  const movePlayer = useCallback((dx: number, dy: number) => {
+    setPlayer((current) => {
+      const next = { x: current.x + dx, y: current.y + dy };
+      return isWalkable(layout, next.x, next.y) ? next : current;
+    });
+  }, [layout]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const directions: Record<string, Point> = {
+        ArrowUp: { x: 0, y: -1 },
+        w: { x: 0, y: -1 },
+        ArrowDown: { x: 0, y: 1 },
+        s: { x: 0, y: 1 },
+        ArrowLeft: { x: -1, y: 0 },
+        a: { x: -1, y: 0 },
+        ArrowRight: { x: 1, y: 0 },
+        d: { x: 1, y: 0 },
+      };
+      const direction = directions[event.key];
+      if (!direction) return;
+      event.preventDefault();
+      movePlayer(direction.x, direction.y);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [movePlayer]);
 
   return (
     <main className="room-shell">
@@ -219,11 +270,24 @@ export function FirstGeneratedRoom() {
         .regen:hover { background:#d7ad67; }
         .room-body { padding:24px 28px 28px; }
         .map-stage { overflow:auto; border:1px solid #4b5559; background:#0d1014; padding:22px; }
-        .map { display:grid; grid-template-columns:repeat(${COLS}, 32px); grid-template-rows:repeat(${ROWS}, 32px); width:max-content; margin:auto; image-rendering:pixelated; image-rendering:crisp-edges; box-shadow:0 0 0 7px #20272d, 0 0 0 8px #59635f; }
+         .map { display:grid; grid-template-columns:repeat(${COLS}, 32px); grid-template-rows:repeat(${ROWS}, 32px); width:max-content; margin:auto; image-rendering:pixelated; image-rendering:crisp-edges; box-shadow:0 0 0 7px #20272d, 0 0 0 8px #59635f; position:relative; }
         .tile { width:32px; height:32px; display:block; image-rendering:pixelated; image-rendering:crisp-edges; }
         .tile:hover { outline:1px solid #e1bc78; outline-offset:-1px; position:relative; z-index:1; }
+         .player-sprite { position:absolute; z-index:3; width:24px; height:28px; margin:2px 4px; border:2px solid #19151a; border-radius:50% 50% 42% 42%; background:linear-gradient(90deg,#f08c83 0 28%,#f8c3a0 28% 72%,#e57d78 72%); box-shadow:0 2px 0 #0b0d10, inset 0 -5px 0 rgba(153,54,76,.38); pointer-events:none; transition:transform 100ms ease-out; }
+         .player-sprite::before { content:""; position:absolute; left:5px; top:7px; width:4px; height:4px; border-radius:50%; background:#231c25; box-shadow:8px 0 #231c25; }
+         .player-sprite::after { content:""; position:absolute; left:8px; bottom:5px; width:5px; height:2px; border-radius:50%; background:#8e485a; }
+         .player-label { position:absolute; z-index:4; left:50%; top:-19px; transform:translateX(-50%); color:#f8cf85; font:700 8px/1 'Space Mono',monospace; letter-spacing:.08em; text-shadow:0 1px #11151b; pointer-events:none; }
         .under-map { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-top:18px; color:#849095; font-size:10px; }
         .under-map strong { color:#e3d3b2; font-weight:400; }
+         .controls { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:18px; padding:13px 15px; border:1px solid #394149; background:#171d23; color:#87939a; font-size:10px; }
+         .controls strong { color:#f1e5ca; font-weight:400; }
+         .mobile-controls { display:none; grid-template-columns:repeat(3,44px); grid-template-rows:repeat(2,44px); justify-content:center; gap:6px; margin-top:18px; }
+         .move-button { display:flex; align-items:center; justify-content:center; border:1px solid #6e5940; border-radius:5px; background:#2a2522; color:#f1c879; touch-action:manipulation; user-select:none; -webkit-tap-highlight-color:transparent; }
+         .move-button:active { background:#bd8d45; color:#171a1e; transform:translateY(1px); }
+         .move-button.up { grid-column:2; grid-row:1; }
+         .move-button.left { grid-column:1; grid-row:2; }
+         .move-button.down { grid-column:2; grid-row:2; }
+         .move-button.right { grid-column:3; grid-row:2; }
         .specs { display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:1px; margin-top:22px; background:#394149; border:1px solid #394149; }
         .spec { background:#20272d; padding:16px; min-height:73px; }
         .spec-label { display:flex; align-items:center; gap:7px; color:#748188; font-size:9px; letter-spacing:.12em; text-transform:uppercase; }
@@ -234,7 +298,7 @@ export function FirstGeneratedRoom() {
         .swatch.water { background:#5d94a0; border-color:#83bbc0; }
         .swatch.stairs { background:#bd8d45; border-color:#e5bd74; }
         .note { margin:19px 0 0; padding:13px 15px; border-left:2px solid #bd8d45; color:#aeb5af; font-size:10px; line-height:1.7; background:#1c2329; }
-        @media (max-width:680px) { .room-shell{padding:12px}.room-header{padding:20px;display:block}.regen{margin-top:18px}.room-body{padding:16px}.room-title{font-size:26px}.specs{grid-template-columns:1fr}.under-map{display:block;line-height:1.8} }
+         @media (max-width:680px) { .room-shell{padding:12px}.room-header{padding:20px;display:block}.regen{margin-top:18px}.room-body{padding:16px}.room-title{font-size:26px}.specs{grid-template-columns:1fr}.under-map{display:block;line-height:1.8}.mobile-controls{display:grid}.controls{display:block;line-height:1.7}.controls span{display:block}.controls span + span{margin-top:4px} }
       `}</style>
       <section className="room-frame">
         <header className="room-header">
@@ -253,11 +317,29 @@ export function FirstGeneratedRoom() {
               {room.flatMap((row, y) => row.map((tile, x) => (
                 <img className="tile" key={`${x}-${y}-${tile}`} src={imageFor(tile)} alt={`${tile}, ${roleFor(tile)}, grid ${x + 1} by ${y + 1}`} title={`${tile} · ${roleFor(tile)}`} />
               )))}
+              <div
+                className="player-sprite"
+                style={{ left: player.x * 32, top: player.y * 32 }}
+                role="img"
+                aria-label={`Pill character at grid ${player.x + 1} by ${player.y + 1}`}
+              >
+                <span className="player-label">P1</span>
+              </div>
             </div>
           </div>
           <div className="under-map">
             <span><strong>SEED {layout.seed}</strong> · {COLS} × {ROWS} cells · deterministic layout</span>
-            <span>Atlas coordinates preserved in tile IDs</span>
+            <span aria-live="polite">PILL {player.x + 1},{player.y + 1} · {isMobile ? "touch controls active" : "arrow keys / WASD"}</span>
+          </div>
+          <div className="controls" aria-label="Movement instructions">
+            <span><strong>Move the pill</strong> with arrow keys or WASD.</span>
+            <span>Walls and water block movement · bridges remain open.</span>
+          </div>
+          <div className="mobile-controls" style={isMobile ? { display: "grid" } : undefined} aria-label="Touch movement controls">
+            <button className="move-button up" type="button" aria-label="Move up" onClick={() => movePlayer(0, -1)}><ArrowUp size={20} /></button>
+            <button className="move-button left" type="button" aria-label="Move left" onClick={() => movePlayer(-1, 0)}><ArrowLeft size={20} /></button>
+            <button className="move-button down" type="button" aria-label="Move down" onClick={() => movePlayer(0, 1)}><ArrowDown size={20} /></button>
+            <button className="move-button right" type="button" aria-label="Move right" onClick={() => movePlayer(1, 0)}><ArrowRight size={20} /></button>
           </div>
           <div className="specs">
             <div className="spec"><div className="spec-label"><Ruler size={12} /> Native scale</div><div className="spec-value">32 × 32 CSS px / tile</div></div>
