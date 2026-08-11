@@ -4,13 +4,14 @@ An atlas-driven room generator mockup that assembles floors, halls, water, stair
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server
-- `PORT=8081 pnpm --filter @workspace/mockup-sandbox run dev` — run the room-generator preview locally
+- `pnpm --filter @workspace/room-generator run dev` — run the canonical web app locally
+- `pnpm --filter @workspace/api-server run dev` — run the API server when backend work is needed
 - `pnpm run typecheck` — full typecheck across all packages
-- `PORT=8081 BASE_PATH=/__mockup pnpm run build` — typecheck + build all packages (the mockup Vite config requires both values)
+- `pnpm --filter @workspace/room-generator run build` — build the web app for production
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- The managed web artifact supplies `PORT` and `BASE_PATH` automatically.
+- The API server requires `DATABASE_URL` — a Postgres connection string — when database-backed routes are used.
 
 ## Stack
 
@@ -23,8 +24,8 @@ An atlas-driven room generator mockup that assembles floors, halls, water, stair
 
 ## Where things live
 
-- `artifacts/mockup-sandbox/src/components/mockups/room-generator/FirstGeneratedRoom.tsx` — room layouts, tile classification, and wall/floor generation
-- `artifacts/mockup-sandbox/public/images/tileset/` — copied atlas PNGs and labels
+- `artifacts/room-generator/src/components/FirstGeneratedRoom.tsx` — canonical web app room layouts, tile classification, and wall/floor generation
+- `artifacts/room-generator/public/images/tileset/` — atlas PNGs and labels used by the web app
 - `lib/api-spec/openapi.yaml` — API contract
 - `lib/db/src/schema/` — Drizzle schema source
 
@@ -41,7 +42,7 @@ The current product surface is a deterministic visual room-generation preview wi
 
 ## Gotchas
 
-- The mockup preview build needs `PORT` and `BASE_PATH` set; the managed artifact workflow supplies them automatically.
+- The canvas mockup is retained as a design reference; the user-facing product is the `Room Generator` web artifact at `/`.
 - The API scaffold currently has only `/api/healthz`; its database schema is intentionally empty.
 
 ## Pointers
