@@ -9,7 +9,7 @@ const ROWS = 11;
 
 const floorTiles = ["B2", "C2", "D2", "E2", "B3", "C3", "D3", "E3", "B4", "C4", "D4", "E4"];
 const topWalls = ["A1", "B1", "C1", "D1", "E1", "F1"];
-const bottomWalls = ["G3", "H3", "I3", "J3"];
+const bottomCaps = ["A5", "B5", "C5", "D5", "E5", "F5"];
 
 type RoomLayout = {
   name: string;
@@ -34,7 +34,7 @@ function imageFor(tile: TileId) {
 
 function tileFor(layout: RoomLayout, x: number, y: number): TileId {
   if (y === 0) return topWalls[x === 0 ? 0 : x === COLS - 1 ? 5 : (x % 4) + 1];
-  if (y === ROWS - 1) return bottomWalls[x === 0 ? 0 : x === COLS - 1 ? 3 : (x % 4)];
+  if (y === ROWS - 1) return bottomCaps[x === 0 ? 0 : x === COLS - 1 ? 5 : (x % 4) + 1];
   if (x === 0) return ["A2", "A3", "A4"][y % 3];
   if (x === COLS - 1) return ["F2", "F3", "F4"][y % 3];
 
@@ -61,10 +61,10 @@ function buildRoom(layout: RoomLayout) {
 }
 
 function roleFor(tile: TileId) {
-  if (tile.startsWith("H4") || tile.endsWith("5")) return "water";
+  if (["H4", "I4", "J4", "K4", "H5", "I5", "J5", "K5"].includes(tile)) return "water";
   if (tile === "G4" || tile === "G5") return "stairs";
   if (tile.endsWith("1") && tile !== "H1") return "perspective wall";
-  if (tile.startsWith("A") || tile.startsWith("F") || tile === "G3" || tile === "H3" || tile === "I3" || tile === "J3") return "wall cap";
+  if (tile.startsWith("A") || tile.startsWith("F") || ["A5", "B5", "C5", "D5", "E5", "F5"].includes(tile)) return "wall cap";
   return "floor";
 }
 
