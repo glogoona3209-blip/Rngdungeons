@@ -236,8 +236,14 @@ function createCrossroadsLayout(seed: string, random: () => number) {
   );
 }
 
-const optionalWater = (random: () => number, candidates: Rect[], chance = 0.3) => {
-  if (random() > chance) return [];
+/**
+ * Water is a special feature, not a default room treatment. Layouts can
+ * suggest one or more basin locations, but the generator caps the requested
+ * probability so most generated rooms stay dry even when their footprint has
+ * a natural basin-shaped area.
+ */
+const optionalWater = (random: () => number, candidates: Rect[], chance = 0.18) => {
+  if (random() > Math.min(chance, 0.18)) return [];
   return [candidates[randomInt(random, 0, candidates.length - 1)]];
 };
 
@@ -265,11 +271,7 @@ function createSShapeLayout(seed: string, random: () => number) {
   const bottom: Rect = { x: randomInt(random, 4, 6), y: 11, w: 17, h: 4 };
   const topPool: Rect = { x: top.x + 2, y: top.y + 1, w: 5, h: 2 };
   const bottomPool: Rect = { x: bottom.x + 8, y: bottom.y + 1, w: 5, h: 2 };
-  const waterRects = random() < 0.72
-    ? []
-    : random() < 0.5
-      ? [topPool]
-      : [topPool, bottomPool];
+  const waterRects = optionalWater(random, [topPool, bottomPool], 0.18);
 
   return layoutFrom(
     seed,
@@ -738,6 +740,13 @@ const sideWallTile = (x: number, y: number, side: "left" | "right") => (side ===
 function wallTileFor(layout: RoomLayout, x: number, y: number): TileId {
   const north = isOpen(layout, x, y - 1), south = isOpen(layout, x, y + 1), west = isOpen(layout, x - 1, y), east = isOpen(layout, x + 1, y);
   const northEast = isOpen(layout, x + 1, y - 1), northWest = isOpen(layout, x - 1, y - 1), southEast = isOpen(layout, x + 1, y + 1), southWest = isOpen(layout, x - 1, y + 1);
+  // A perspective edge must continue through the end of a zigzag turn. The
+  // neighboring leg can make this void cell look like a left/right wall if
+  // the side-cap checks win first, leaving a visibly broken perspective run.
+  // Prefer the perspective family whenever the open cell is still directly
+  // below this boundary cell.
+  if (south && !north) return topWallTile(x, y);
+  if (north && !south) return bottomWallTile(x, y);
   // Keep the indent pieces on the lower-facing turns and the perspective
   // corners on the upper-facing turns. The two groups look similar in the
   // atlas, but using them in the opposite pair makes an indent read as a
@@ -753,8 +762,6 @@ function wallTileFor(layout: RoomLayout, x: number, y: number): TileId {
     if (northWest) return "F5";
     return voidTile;
   }
-  if (south && !north) return topWallTile(x, y);
-  if (north && !south) return bottomWallTile(x, y);
   // At a zigzag turn, the final cell of a perspective edge can have a
   // cardinal neighbor along the next leg but only diagonal support beneath
   // it. Keep that terminal wall in the perspective family instead of
