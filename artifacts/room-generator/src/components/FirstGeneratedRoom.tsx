@@ -56,7 +56,57 @@ const layoutFrom = (
   bridgeCells: Point[],
   stairsUp: [number, number],
   stairsDown: [number, number],
-): RoomLayout => ({ name, seed, floorRects, waterRects, bridgeCells, stairsUp, stairsDown });
+): RoomLayout => ({ name, seed, floorRects: normalizeFloorRects(floorRects), waterRects, bridgeCells, stairsUp, stairsDown });
+
+/**
+ * Keep every generated footprint readable at the native tile scale. A void
+ * cell that sits between floor on opposite sides is a one-tile notch or gap;
+ * filling it prevents accidental hairline corridors while preserving larger
+ * courtyards, openings, and abstract negative space.
+ */
+function normalizeFloorRects(rects: Rect[]) {
+  const cells = new Set<string>();
+  const key = (x: number, y: number) => `${x},${y}`;
+  rects.forEach((rect) => {
+    for (let y = rect.y; y < rect.y + rect.h; y += 1) {
+      for (let x = rect.x; x < rect.x + rect.w; x += 1) cells.add(key(x, y));
+    }
+  });
+
+  const additions: string[] = [];
+  for (let y = 1; y < ROWS - 1; y += 1) {
+    for (let x = 1; x < COLS - 1; x += 1) {
+      if (cells.has(key(x, y))) continue;
+      const north = cells.has(key(x, y - 1));
+      const south = cells.has(key(x, y + 1));
+      const west = cells.has(key(x - 1, y));
+      const east = cells.has(key(x + 1, y));
+      if ((north && south) || (west && east)) additions.push(key(x, y));
+    }
+  }
+  additions.forEach((cell) => cells.add(cell));
+
+  const merged: Rect[] = [];
+  for (let y = 0; y < ROWS; y += 1) {
+    let x = 0;
+    while (x < COLS) {
+      if (!cells.has(key(x, y))) {
+        x += 1;
+        continue;
+      }
+      const start = x;
+      while (x < COLS && cells.has(key(x, y))) x += 1;
+      const width = x - start;
+      const previous = merged[merged.length - 1];
+      if (previous && previous.x === start && previous.w === width && previous.y + previous.h === y) {
+        previous.h += 1;
+      } else {
+        merged.push({ x: start, y, w: width, h: 1 });
+      }
+    }
+  }
+  return merged;
+}
 
 function createCourtyardLayout(seed: string, random: () => number) {
   const courtyard: Rect = {
@@ -357,10 +407,236 @@ function createTwinChambersLayout(seed: string, random: () => number) {
   );
 }
 
+function createPlusLayout(seed: string, random: () => number) {
+  const vertical: Rect = { x: randomInt(random, 9, 10), y: 2, w: 5, h: 13 };
+  const horizontal: Rect = { x: 3, y: randomInt(random, 6, 8), w: 18, h: 5 };
+  const pools = [
+    { x: 4, y: horizontal.y + 1, w: 4, h: 3 },
+    { x: 16, y: horizontal.y + 1, w: 4, h: 3 },
+  ];
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "Four-way star crossing" : "Plus-shaped waterway",
+    [vertical, horizontal],
+    optionalWater(random, pools, 0.72),
+    [],
+    [vertical.x + 2, vertical.y + 1],
+    [vertical.x + 2, vertical.y + vertical.h - 2],
+  );
+}
+
+function createYShapeLayout(seed: string, random: () => number) {
+  const leftFork: Rect = { x: 3, y: 2, w: 5, h: 8 };
+  const rightFork: Rect = { x: 16, y: 2, w: 5, h: 8 };
+  const crossbar: Rect = { x: 7, y: 6, w: 10, h: 4 };
+  const stem: Rect = { x: 10, y: 8, w: 5, h: 7 };
+  const pools = [
+    { x: leftFork.x + 1, y: leftFork.y + 2, w: 3, h: 4 },
+    { x: rightFork.x + 1, y: rightFork.y + 2, w: 3, h: 4 },
+  ];
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "Y-shaped forked gallery" : "Three-way split chamber",
+    [leftFork, rightFork, crossbar, stem],
+    optionalWater(random, pools, 0.64),
+    [],
+    [stem.x + 2, stem.y + stem.h - 2],
+    [leftFork.x + 2, leftFork.y + 1],
+  );
+}
+
+function createEShapeLayout(seed: string, random: () => number) {
+  const spine: Rect = { x: 3, y: 2, w: 4, h: 13 };
+  const topArm: Rect = { x: 3, y: 2, w: 17, h: 3 };
+  const middleArm: Rect = { x: 3, y: 7, w: randomInt(random, 12, 16), h: 3 };
+  const bottomArm: Rect = { x: 3, y: 12, w: 17, h: 3 };
+  const pools = [
+    { x: 8, y: 3, w: 5, h: 2 },
+    { x: 8, y: 8, w: 5, h: 2 },
+    { x: 8, y: 13, w: 5, h: 2 },
+  ];
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "E-shaped branching hall" : "Three-arm colonnade",
+    [spine, topArm, middleArm, bottomArm],
+    optionalWater(random, pools, 0.62),
+    [],
+    [spine.x + 1, spine.y + 1],
+    [bottomArm.x + bottomArm.w - 2, bottomArm.y + 1],
+  );
+}
+
+function createWShapeLayout(seed: string, random: () => number) {
+  const legs = [3, 8, 13, 18].map((x) => ({ x, y: 2, w: 3, h: 13 }));
+  const foot: Rect = { x: 3, y: 11, w: 18, h: 4 };
+  const pools = [
+    { x: 5, y: 12, w: 4, h: 2 },
+    { x: 14, y: 12, w: 4, h: 2 },
+  ];
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "W-shaped wellworks" : "Four-column zigzag",
+    [...legs, foot],
+    optionalWater(random, pools, 0.5),
+    [],
+    [legs[0].x + 1, 3],
+    [legs[3].x + 1, 12],
+  );
+}
+
+function createDiamondLayout(seed: string, random: () => number) {
+  const crown: Rect = { x: 9, y: 2, w: 6, h: 3 };
+  const shoulders: Rect = { x: 6, y: 5, w: 12, h: 3 };
+  const belly: Rect = { x: 4, y: 8, w: 16, h: 3 };
+  const point: Rect = { x: 7, y: 11, w: 10, h: 4 };
+  const pool: Rect = { x: 9, y: 8, w: 6, h: 3 };
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "Stepped diamond atrium" : "Faceted reservoir",
+    [crown, shoulders, belly, point],
+    optionalWater(random, [pool], 0.66),
+    [],
+    [crown.x + 2, crown.y + 1],
+    [point.x + point.w - 3, point.y + 1],
+  );
+}
+
+function createKShapeLayout(seed: string, random: () => number) {
+  const spine: Rect = { x: 3, y: 2, w: 4, h: 13 };
+  const upper: Rect[] = [
+    { x: 6, y: 2, w: 6, h: 3 },
+    { x: 9, y: 5, w: 6, h: 3 },
+    { x: 12, y: 8, w: 6, h: 3 },
+  ];
+  const lower: Rect[] = [
+    { x: 12, y: 8, w: 6, h: 3 },
+    { x: 9, y: 10, w: 6, h: 3 },
+    { x: 6, y: 12, w: 6, h: 3 },
+  ];
+  const pool: Rect = { x: 14, y: 9, w: 3, h: 2 };
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "K-shaped split vault" : "Forked diagonal nave",
+    [spine, ...upper, ...lower],
+    optionalWater(random, [pool], 0.58),
+    [],
+    [spine.x + 1, 3],
+    [lower[2].x + 2, lower[2].y + 1],
+  );
+}
+
+function createStarLayout(seed: string, random: () => number) {
+  const center: Rect = { x: 9, y: 6, w: 6, h: 5 };
+  const north: Rect = { x: 10, y: 2, w: 4, h: 7 };
+  const south: Rect = { x: 10, y: 8, w: 4, h: 7 };
+  const west: Rect = { x: 3, y: 7, w: 9, h: 3 };
+  const east: Rect = { x: 12, y: 7, w: 9, h: 3 };
+  const pools = [
+    { x: 4, y: 7, w: 4, h: 2 },
+    { x: 16, y: 7, w: 4, h: 2 },
+  ];
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "Five-point star chamber" : "Radial cistern",
+    [center, north, south, west, east],
+    optionalWater(random, pools, 0.62),
+    [],
+    [north.x + 1, north.y + 1],
+    [south.x + 2, south.y + south.h - 2],
+  );
+}
+
+function createZShapeLayout(seed: string, random: () => number) {
+  const top: Rect = { x: 3, y: 2, w: 18, h: 3 };
+  const upperTurn: Rect = { x: 12, y: 4, w: 5, h: 3 };
+  const middle: Rect = { x: 8, y: 7, w: 7, h: 3 };
+  const lowerTurn: Rect = { x: 4, y: 9, w: 5, h: 3 };
+  const bottom: Rect = { x: 3, y: 12, w: 18, h: 3 };
+  const pool: Rect = { x: 16, y: 3, w: 4, h: 2 };
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "Z-shaped switch channel" : "Diagonal lightning hall",
+    [top, upperTurn, middle, lowerTurn, bottom],
+    optionalWater(random, [pool], 0.6),
+    [],
+    [top.x + 2, top.y + 1],
+    [bottom.x + bottom.w - 3, bottom.y + 1],
+  );
+}
+
+function createSpiralLayout(seed: string, random: () => number) {
+  const outerTop: Rect = { x: 3, y: 2, w: 18, h: 3 };
+  const outerRight: Rect = { x: 18, y: 2, w: 3, h: 13 };
+  const outerBottom: Rect = { x: 6, y: 12, w: 15, h: 3 };
+  const innerLeft: Rect = { x: 6, y: 8, w: 3, h: 7 };
+  const innerMiddle: Rect = { x: 6, y: 8, w: 12, h: 3 };
+  const innerRight: Rect = { x: 15, y: 5, w: 3, h: 6 };
+  const innerTop: Rect = { x: 9, y: 5, w: 9, h: 3 };
+  const pool: Rect = { x: 10, y: 6, w: 4, h: 2 };
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "Inward spiral cistern" : "Coiled aqueduct",
+    [outerTop, outerRight, outerBottom, innerLeft, innerMiddle, innerRight, innerTop],
+    optionalWater(random, [pool], 0.58),
+    [],
+    [outerTop.x + 2, outerTop.y + 1],
+    [outerBottom.x + outerBottom.w - 3, outerBottom.y + 1],
+  );
+}
+
+function createCombLayout(seed: string, random: () => number) {
+  const spine: Rect = { x: 3, y: 2, w: 4, h: 13 };
+  const topTooth: Rect = { x: 3, y: 2, w: 17, h: 3 };
+  const middleTooth: Rect = { x: 3, y: 7, w: randomInt(random, 12, 16), h: 3 };
+  const bottomTooth: Rect = { x: 3, y: 12, w: 17, h: 3 };
+  const pools = [
+    { x: 8, y: 3, w: 4, h: 2 },
+    { x: 8, y: 8, w: 4, h: 2 },
+    { x: 8, y: 13, w: 4, h: 2 },
+  ];
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "Comb-shaped sluice" : "Toothed archive hall",
+    [spine, topTooth, middleTooth, bottomTooth],
+    optionalWater(random, pools, 0.62),
+    [],
+    [spine.x + 1, spine.y + 1],
+    [bottomTooth.x + bottomTooth.w - 2, bottomTooth.y + 1],
+  );
+}
+
+function createStaggeredChambersLayout(seed: string, random: () => number) {
+  const upper: Rect = { x: 2, y: 2, w: 10, h: 6 };
+  const middle: Rect = { x: 7, y: 5, w: 10, h: 6 };
+  const lower: Rect = { x: 12, y: 8, w: 10, h: 6 };
+  const upperPool: Rect = { x: 5, y: 4, w: 4, h: 2 };
+  const lowerPool: Rect = { x: 15, y: 10, w: 4, h: 2 };
+
+  return layoutFrom(
+    seed,
+    random() > 0.5 ? "Staggered triple chambers" : "Offset room cascade",
+    [upper, middle, lower],
+    random() > 0.42 ? [random() > 0.5 ? upperPool : lowerPool] : [],
+    [],
+    [upper.x + 2, upper.y + 1],
+    [lower.x + lower.w - 3, lower.y + lower.h - 2],
+  );
+}
+
 function createRandomLayout(): RoomLayout {
   const seed = createSeed();
   const random = createRandom(seed);
-  const archetype = randomInt(random, 0, 13);
+  const archetype = randomInt(random, 0, 24);
   if (archetype === 0) return createCourtyardLayout(seed, random);
   if (archetype === 1) return createSewerLayout(seed, random);
   if (archetype === 2) return createFloodedWingLayout(seed, random);
@@ -374,7 +650,18 @@ function createRandomLayout(): RoomLayout {
   if (archetype === 10) return createCShapeLayout(seed, random);
   if (archetype === 11) return createRingLayout(seed, random);
   if (archetype === 12) return createSwitchbackLayout(seed, random);
-  return createTwinChambersLayout(seed, random);
+  if (archetype === 13) return createTwinChambersLayout(seed, random);
+  if (archetype === 14) return createPlusLayout(seed, random);
+  if (archetype === 15) return createYShapeLayout(seed, random);
+  if (archetype === 16) return createEShapeLayout(seed, random);
+  if (archetype === 17) return createWShapeLayout(seed, random);
+  if (archetype === 18) return createDiamondLayout(seed, random);
+  if (archetype === 19) return createKShapeLayout(seed, random);
+  if (archetype === 20) return createStarLayout(seed, random);
+  if (archetype === 21) return createZShapeLayout(seed, random);
+  if (archetype === 22) return createSpiralLayout(seed, random);
+  if (archetype === 23) return createCombLayout(seed, random);
+  return createStaggeredChambersLayout(seed, random);
 }
 
 const inRect = (x: number, y: number, rect: Rect) => x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h;
@@ -465,7 +752,7 @@ export function FirstGeneratedRoom() {
   return (
     <main className="room-shell">
       <section className="room-frame">
-         <header className="room-header"><div><p className="eyebrow">Room generator / first pass</p><h1 className="room-title">{layout.name}</h1><p className="room-subtitle">An abstract chamber network assembled from the labeled atlas. Floors remain continuous through halls, while surrounding wall edges define each newly generated footprint.</p></div><button className="regen" type="button" onClick={() => setLayout(createRandomLayout())}><RefreshCw size={14} strokeWidth={2.5} /> Regenerate room</button></header>
+         <header className="room-header"><div><p className="eyebrow">Room generator / shape study</p><h1 className="room-title">{layout.name}</h1><p className="room-subtitle">A varied chamber network assembled from 25 abstract footprint families. Floors remain continuous through halls, while surrounding wall edges define each newly generated shape.</p></div><button className="regen" type="button" onClick={() => setLayout(createRandomLayout())}><RefreshCw size={14} strokeWidth={2.5} /> Regenerate room</button></header>
         <div className="room-body">
           <div className="map-stage" aria-label={`${layout.name} tile preview`}><div className="map">{room.flatMap((row, y) => row.map((tile, x) => <img className="tile" key={`${x}-${y}-${tile}`} src={`${TILE_ROOT}/${tile}.png`} alt={`${tile}, ${roleFor(tile)}, grid ${x + 1} by ${y + 1}`} title={`${tile} · ${roleFor(tile)}`} />))}<div className="player-sprite" style={{ left: player.x * 32, top: player.y * 32 }} role="img" aria-label={`Pill character at grid ${player.x + 1} by ${player.y + 1}`}><span className="player-label">P1</span></div></div></div>
            <div className="under-map"><span><strong>SEED {layout.seed}</strong> · {COLS} × {ROWS} cells · fresh layout</span><span aria-live="polite">PILL {player.x + 1},{player.y + 1} · {isMobile ? "touch controls active" : "arrow keys / WASD"}</span></div>
@@ -473,7 +760,7 @@ export function FirstGeneratedRoom() {
           <div className="mobile-controls" style={isMobile ? { display: "grid" } : undefined} aria-label="Touch movement controls">{moveButtons.map((button) => <button className={`move-button ${button.className}`} key={button.label} type="button" aria-label={button.label} onClick={() => movePlayer(button.dx, button.dy)}>{button.icon}</button>)}</div>
            <div className="specs"><div className="spec"><div className="spec-label"><Ruler size={12} /> Native scale</div><div className="spec-value">32 × 32 CSS px / tile</div></div><div className="spec"><div className="spec-label"><Droplets size={12} /> Water pockets</div><div className="spec-value">{layout.waterRects.length ? `${layout.waterRects.map((rect) => `${rect.w} × ${rect.h}`).join(" · ")} floor bridges` : "dry footprint"}</div></div><div className="spec"><div className="spec-label"><Sparkles size={12} /> Tile source</div><div className="spec-value">32 × 32 PNG atlas</div></div></div>
           <div className="legend"><span className="legend-item"><i className="swatch" /> floor + wall cap</span><span className="legend-item"><i className="swatch water" /> water + edge transition</span><span className="legend-item"><i className="swatch stairs" /> ascending / descending</span></div>
-          <p className="note">Generation rule: floors stay on the room footprint and walls occupy the surrounding void. Top edges use perspective pieces, side and lower edges use thin caps, and corner pieces appear only where a boundary actually turns.</p>
+           <p className="note">Generation rule: floors stay on the room footprint and walls occupy the surrounding void. One-tile notches and gaps are filled automatically, so every indent remains at least two tiles wide. Top edges use perspective pieces, side and lower edges use thin caps, and corner pieces appear only where a boundary actually turns.</p>
         </div>
       </section>
     </main>
