@@ -131,9 +131,9 @@ function createCourtyardLayout(seed: string, random: () => number) {
 
   return layoutFrom(
     seed,
-    "Sunken cistern courtyard",
+    random() < 0.34 ? "Sunken cistern courtyard" : "Open courtyard",
     [courtyard, entrance],
-    [pool],
+    optionalWater(random, [pool], 0.34),
     [],
     [courtyard.x, courtyard.y + 1],
     [courtyard.x + courtyard.w - 1, entranceY],
@@ -158,9 +158,9 @@ function createSewerLayout(seed: string, random: () => number) {
 
   return layoutFrom(
     seed,
-    "Sewer spillway",
+    random() < 0.36 ? "Sewer spillway" : "Dry switchback sewer",
     [verticalStart, firstTurn, secondTurn, spillway],
-    [pool],
+    optionalWater(random, [pool], 0.36),
     [],
     [upperX + 1, 3],
     [secondX + 1, firstTurnY + 1],
@@ -181,9 +181,9 @@ function createFloodedWingLayout(seed: string, random: () => number) {
 
   return layoutFrom(
     seed,
-    "Flooded west wing",
+    random() < 0.38 ? "Flooded west wing" : "West wing chambers",
     [leftRoom, hall, rightRoom],
-    [pool],
+    optionalWater(random, [pool], 0.38),
     lineCells({ x: pool.x, y: hallY + 1 }, { x: pool.x + pool.w - 1, y: hallY + 1 }),
     [leftRoom.x, leftRoom.y + leftRoom.h - 2],
     [rightRoom.x + rightRoom.w - 2, rightRoom.y + 1],
@@ -202,9 +202,11 @@ function createBridgeBasinLayout(seed: string, random: () => number) {
 
   return layoutFrom(
     seed,
-    verticalBasin ? "North-south bridge basin" : "Wide bridge basin",
+    random() < 0.38
+      ? verticalBasin ? "North-south bridge basin" : "Wide bridge basin"
+      : verticalBasin ? "North-south bridge hall" : "Wide dry bridge hall",
     [room],
-    [pool],
+    optionalWater(random, [pool], 0.38),
     bridgeCells,
     [room.x + 1, room.y + 1],
     [room.x + room.w - 2, room.y + room.h - 2],
@@ -223,16 +225,18 @@ function createCrossroadsLayout(seed: string, random: () => number) {
 
   return layoutFrom(
     seed,
-    floodedLeft ? "Flooded west crossroads" : "Flooded east crossroads",
+    random() < 0.34
+      ? floodedLeft ? "Flooded west crossroads" : "Flooded east crossroads"
+      : floodedLeft ? "West crossroads" : "East crossroads",
     [vertical, horizontal],
-    [pool],
+    optionalWater(random, [pool], 0.34),
     [],
     [verticalX + 2, 3],
     floodedLeft ? [19, horizontalY + 2] : [4, horizontalY + 2],
   );
 }
 
-const optionalWater = (random: () => number, candidates: Rect[], chance = 0.68) => {
+const optionalWater = (random: () => number, candidates: Rect[], chance = 0.3) => {
   if (random() > chance) return [];
   return [candidates[randomInt(random, 0, candidates.length - 1)]];
 };
@@ -261,7 +265,7 @@ function createSShapeLayout(seed: string, random: () => number) {
   const bottom: Rect = { x: randomInt(random, 4, 6), y: 11, w: 17, h: 4 };
   const topPool: Rect = { x: top.x + 2, y: top.y + 1, w: 5, h: 2 };
   const bottomPool: Rect = { x: bottom.x + 8, y: bottom.y + 1, w: 5, h: 2 };
-  const waterRects = random() < 0.32
+  const waterRects = random() < 0.72
     ? []
     : random() < 0.5
       ? [topPool]
@@ -288,7 +292,7 @@ function createUShapeLayout(seed: string, random: () => number) {
     seed,
     random() > 0.45 ? "U-shaped cloister basin" : "U-shaped dry cloister",
     [left, right, base],
-    optionalWater(random, [courtyardBasin], 0.58),
+    optionalWater(random, [courtyardBasin], 0.32),
     [],
     [left.x + 1, left.y + 1],
     [right.x + 2, right.y + 1],
@@ -307,7 +311,7 @@ function createTShapeLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "T-shaped tide hall" : "T-shaped stone gallery",
     [crown, stem],
-    optionalWater(random, pools),
+    optionalWater(random, pools, 0.3),
     [],
     [stem.x + 2, stem.y + 2],
     [stem.x + 2, stem.y + stem.h - 2],
@@ -326,7 +330,7 @@ function createHShapeLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "H-shaped crossing" : "Twin-column nave",
     [left, right, crossbar],
-    optionalWater(random, [pool], 0.55),
+    optionalWater(random, [pool], 0.3),
     [],
     [left.x + 1, 3],
     [right.x + 2, 12],
@@ -344,7 +348,7 @@ function createCShapeLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "C-shaped open gallery" : "C-shaped dry arcade",
     [spine, top, bottom],
-    optionalWater(random, [topPool, bottomPool]),
+    optionalWater(random, [topPool, bottomPool], 0.3),
     [],
     [spine.x + 1, 3],
     [bottom.x + bottom.w - 3, bottom.y + 1],
@@ -362,7 +366,7 @@ function createRingLayout(seed: string, random: () => number) {
     seed,
     random() > 0.45 ? "Four-sided basin ring" : "Dry ring sanctuary",
     [top, left, right, bottom],
-    optionalWater(random, [innerBasin], 0.62),
+    optionalWater(random, [innerBasin], 0.34),
     [],
     [top.x + 2, top.y + 1],
     [bottom.x + bottom.w - 3, bottom.y + 1],
@@ -382,7 +386,7 @@ function createSwitchbackLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "Switchback terrace" : "Zigzag spillway",
     [upper, upperTurn, lowerTurn, lower],
-    optionalWater(random, [pool]),
+    optionalWater(random, [pool], 0.3),
     [],
     [upper.x + upper.w - 3, upper.y + 1],
     [lower.x + 2, lower.y + 1],
@@ -400,7 +404,7 @@ function createTwinChambersLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "Twin chambers with a sluice" : "Paired vaulted rooms",
     [left, right, connector],
-    random() > 0.4 ? [random() > 0.5 ? leftPool : rightPool] : [],
+    random() > 0.72 ? [random() > 0.5 ? leftPool : rightPool] : [],
     [],
     [left.x + 2, left.y + 1],
     [right.x + right.w - 3, right.y + right.h - 2],
@@ -419,7 +423,7 @@ function createPlusLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "Four-way star crossing" : "Plus-shaped waterway",
     [vertical, horizontal],
-    optionalWater(random, pools, 0.72),
+    optionalWater(random, pools, 0.36),
     [],
     [vertical.x + 2, vertical.y + 1],
     [vertical.x + 2, vertical.y + vertical.h - 2],
@@ -440,7 +444,7 @@ function createYShapeLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "Y-shaped forked gallery" : "Three-way split chamber",
     [leftFork, rightFork, crossbar, stem],
-    optionalWater(random, pools, 0.64),
+    optionalWater(random, pools, 0.34),
     [],
     [stem.x + 2, stem.y + stem.h - 2],
     [leftFork.x + 2, leftFork.y + 1],
@@ -462,7 +466,7 @@ function createEShapeLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "E-shaped branching hall" : "Three-arm colonnade",
     [spine, topArm, middleArm, bottomArm],
-    optionalWater(random, pools, 0.62),
+    optionalWater(random, pools, 0.34),
     [],
     [spine.x + 1, spine.y + 1],
     [bottomArm.x + bottomArm.w - 2, bottomArm.y + 1],
@@ -481,7 +485,7 @@ function createWShapeLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "W-shaped wellworks" : "Four-column zigzag",
     [...legs, foot],
-    optionalWater(random, pools, 0.5),
+    optionalWater(random, pools, 0.28),
     [],
     [legs[0].x + 1, 3],
     [legs[3].x + 1, 12],
@@ -499,7 +503,7 @@ function createDiamondLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "Stepped diamond atrium" : "Faceted reservoir",
     [crown, shoulders, belly, point],
-    optionalWater(random, [pool], 0.66),
+    optionalWater(random, [pool], 0.34),
     [],
     [crown.x + 2, crown.y + 1],
     [point.x + point.w - 3, point.y + 1],
@@ -524,7 +528,7 @@ function createKShapeLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "K-shaped split vault" : "Forked diagonal nave",
     [spine, ...upper, ...lower],
-    optionalWater(random, [pool], 0.58),
+    optionalWater(random, [pool], 0.3),
     [],
     [spine.x + 1, 3],
     [lower[2].x + 2, lower[2].y + 1],
@@ -546,7 +550,7 @@ function createStarLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "Five-point star chamber" : "Radial cistern",
     [center, north, south, west, east],
-    optionalWater(random, pools, 0.62),
+    optionalWater(random, pools, 0.34),
     [],
     [north.x + 1, north.y + 1],
     [south.x + 2, south.y + south.h - 2],
@@ -565,7 +569,7 @@ function createZShapeLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "Z-shaped switch channel" : "Diagonal lightning hall",
     [top, upperTurn, middle, lowerTurn, bottom],
-    optionalWater(random, [pool], 0.6),
+    optionalWater(random, [pool], 0.3),
     [],
     [top.x + 2, top.y + 1],
     [bottom.x + bottom.w - 3, bottom.y + 1],
@@ -586,7 +590,7 @@ function createSpiralLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "Inward spiral cistern" : "Coiled aqueduct",
     [outerTop, outerRight, outerBottom, innerLeft, innerMiddle, innerRight, innerTop],
-    optionalWater(random, [pool], 0.58),
+    optionalWater(random, [pool], 0.3),
     [],
     [outerTop.x + 2, outerTop.y + 1],
     [outerBottom.x + outerBottom.w - 3, outerBottom.y + 1],
@@ -608,7 +612,7 @@ function createCombLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "Comb-shaped sluice" : "Toothed archive hall",
     [spine, topTooth, middleTooth, bottomTooth],
-    optionalWater(random, pools, 0.62),
+    optionalWater(random, pools, 0.3),
     [],
     [spine.x + 1, spine.y + 1],
     [bottomTooth.x + bottomTooth.w - 2, bottomTooth.y + 1],
@@ -626,17 +630,62 @@ function createStaggeredChambersLayout(seed: string, random: () => number) {
     seed,
     random() > 0.5 ? "Staggered triple chambers" : "Offset room cascade",
     [upper, middle, lower],
-    random() > 0.42 ? [random() > 0.5 ? upperPool : lowerPool] : [],
+    random() > 0.72 ? [random() > 0.5 ? upperPool : lowerPool] : [],
     [],
     [upper.x + 2, upper.y + 1],
     [lower.x + lower.w - 3, lower.y + lower.h - 2],
   );
 }
 
+function createSubroomsLayout(seed: string, random: () => number) {
+  const leftRoom: Rect = { x: 2, y: 3, w: 7, h: 7 };
+  const centralRoom: Rect = { x: 8, y: 5, w: 8, h: 7 };
+  const rightRoom: Rect = { x: 15, y: 2, w: 7, h: 7 };
+  const lowerRoom: Rect = { x: 9, y: 11, w: 6, h: 4 };
+  const leftConnector: Rect = { x: 7, y: 6, w: 4, h: 3 };
+  const rightConnector: Rect = { x: 14, y: 5, w: 4, h: 3 };
+  const lowerConnector: Rect = { x: 10, y: 9, w: 4, h: 4 };
+  const pools = [
+    { x: leftRoom.x + 2, y: leftRoom.y + 2, w: 3, h: 3 },
+    { x: rightRoom.x + 2, y: rightRoom.y + 2, w: 3, h: 3 },
+  ];
+
+  return layoutFrom(
+    seed,
+    random() < 0.5 ? "Four-room subchamber cluster" : "Nested rooms with connectors",
+    [leftRoom, centralRoom, rightRoom, lowerRoom, leftConnector, rightConnector, lowerConnector],
+    optionalWater(random, pools, 0.3),
+    [],
+    [leftRoom.x + 2, leftRoom.y + 1],
+    [lowerRoom.x + lowerRoom.w - 2, lowerRoom.y + 1],
+  );
+}
+
+function createRoomClusterLayout(seed: string, random: () => number) {
+  const northWest: Rect = { x: 2, y: 2, w: 8, h: 6 };
+  const northEast: Rect = { x: 14, y: 2, w: 8, h: 6 };
+  const southWest: Rect = { x: 3, y: 9, w: 8, h: 6 };
+  const southEast: Rect = { x: 13, y: 9, w: 8, h: 6 };
+  const northHall: Rect = { x: 8, y: 4, w: 8, h: 3 };
+  const southHall: Rect = { x: 9, y: 10, w: 6, h: 3 };
+  const centralStair: Rect = { x: 10, y: 6, w: 4, h: 6 };
+  const pool: Rect = { x: 5, y: 11, w: 4, h: 2 };
+
+  return layoutFrom(
+    seed,
+    random() < 0.5 ? "Four-room cross cluster" : "Separated chamber court",
+    [northWest, northEast, southWest, southEast, northHall, southHall, centralStair],
+    optionalWater(random, [pool], 0.28),
+    [],
+    [northWest.x + 2, northWest.y + 1],
+    [southEast.x + southEast.w - 3, southEast.y + southEast.h - 2],
+  );
+}
+
 function createRandomLayout(): RoomLayout {
   const seed = createSeed();
   const random = createRandom(seed);
-  const archetype = randomInt(random, 0, 24);
+  const archetype = randomInt(random, 0, 26);
   if (archetype === 0) return createCourtyardLayout(seed, random);
   if (archetype === 1) return createSewerLayout(seed, random);
   if (archetype === 2) return createFloodedWingLayout(seed, random);
@@ -661,7 +710,9 @@ function createRandomLayout(): RoomLayout {
   if (archetype === 21) return createZShapeLayout(seed, random);
   if (archetype === 22) return createSpiralLayout(seed, random);
   if (archetype === 23) return createCombLayout(seed, random);
-  return createStaggeredChambersLayout(seed, random);
+  if (archetype === 24) return createStaggeredChambersLayout(seed, random);
+  if (archetype === 25) return createSubroomsLayout(seed, random);
+  return createRoomClusterLayout(seed, random);
 }
 
 const inRect = (x: number, y: number, rect: Rect) => x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h;
@@ -704,6 +755,11 @@ function wallTileFor(layout: RoomLayout, x: number, y: number): TileId {
   }
   if (south && !north) return topWallTile(x, y);
   if (north && !south) return bottomWallTile(x, y);
+  // At a zigzag turn, the final cell of a perspective edge can have a
+  // cardinal neighbor along the next leg but only diagonal support beneath
+  // it. Keep that terminal wall in the perspective family instead of
+  // incorrectly switching to a vertical side cap.
+  if (!north && !south && (southEast || southWest) && (east || west)) return topWallTile(x, y);
   if (east && !west) return sideWallTile(x, y, "left");
   if (west && !east) return sideWallTile(x, y, "right");
   if (east) return sideWallTile(x, y, "left");
